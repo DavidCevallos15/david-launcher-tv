@@ -125,9 +125,9 @@ Control remoto para el celular (Android) en `remote/`. Habla el protocolo oficia
 | Función | Cómo |
 |---|---|
 | Navegación | Clickpad estilo Siri Remote: desliza para moverte, toca para OK, toca un borde para una flecha, mantén para OK largo |
-| Teclado | Escribe en el celular y se inserta en el TV (con tildes, ñ y emojis). Se abre solo cuando el TV enfoca un campo de texto |
-| Dictado | Botón de mic en el teclado: voz → texto con el reconocedor del celular |
-| Voz al TV | Mantén el mic azul: el audio va a la búsqueda/Asistente del TV, como el control físico |
+| Teclado | Escribe en el celular y se inserta en el TV. Si el TV anuncia su campo por el protocolo IME, entra con tildes, ñ y emojis; si no (algunos TCL), se teclea carácter a carácter sin tildes |
+| Escribir por voz | Mantén el **mic azul**, habla (ves la transcripción en vivo) y suelta: se escribe en el campo enfocado del TV. En el panel de teclado, el mic dicta al campo del celular para revisar antes de enviar |
+| Asistente del TV | Mantén el chip **Asistente TV**: el audio va directo al Asistente/búsqueda del TV, como el mic del control físico (si el TV lo soporta) |
 | Volumen | Botones en pantalla (mantener repite) y **las teclas de volumen del celular** |
 | Accesos | Netflix, YouTube, Disney+, Spotify, Entrada, Ajustes |
 

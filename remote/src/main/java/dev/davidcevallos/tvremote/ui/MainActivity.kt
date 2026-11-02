@@ -100,6 +100,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        if (dictationReady) dictation.destroy()
         io.shutdownNow()
         super.onDestroy()
     }
@@ -315,6 +316,7 @@ class MainActivity : Activity() {
         }
 
         val apps = findViewById<LinearLayout>(R.id.apps)
+        addAssistantChip(apps)
         SHORTCUTS.forEach { (label, target) ->
             apps.addView(Button(this, null, 0, R.style.Chip).apply {
                 text = label
@@ -328,6 +330,15 @@ class MainActivity : Activity() {
                 }
             })
         }
+    }
+
+    private fun addAssistantChip(apps: LinearLayout) {
+        val chip = Button(this, null, 0, R.style.Chip).apply {
+            text = "Asistente TV"
+            layoutParams = LinearLayout.LayoutParams(-2, dp(44)).apply { marginEnd = dp(8) }
+        }
+        hold(chip, onDown = { startTvAssistant() }, onUp = { stopVoice() })
+        apps.addView(chip, 0)
     }
 
     /** Mantener presionado repite (útil para el volumen). */
@@ -371,68 +382,92 @@ class MainActivity : Activity() {
     }
 
     // ======================================================================
-    // Voz
+    // Voz → texto (dictado en el celular)
     // ======================================================================
 
-    /**
-     * Mantener presionado:
-     *  - si el TV soporta voz → el audio va al TV (búsqueda/Asistente del TV, como el control físico)
-     *  - si no, o sin permiso de mic → dictado del celular y el texto se escribe en el TV
-     */
-    private fun bindMic(button: ImageButton) {
-        button.setOnTouchListener { v, e ->
+    private var dictationReady = false
+    private val dictation by lazy {
+        dictationReady = true
+        Dictation(this, onPartial = ::showLive, onFinal = ::onDictated, onError = ::onDictationError)
+    }
+    private var dictating = false
+    private var pendingTarget = -1
+
+    /** Mic azul: mantener, hablar, soltar → el texto se escribe en el TV. */
+    private fun bindMic(button: ImageButton) = hold(button,
+        onDown = { startDictation(DICTATE_TO_TV) },
+        onUp = { stopDictation() },
+    )
+
+    private fun hold(v: View, onDown: () -> Unit, onUp: () -> Unit) {
+        v.setOnTouchListener { view, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    v.isPressed = true
-                    micHeld = true
-                    v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                    startVoice()
+                    view.isPressed = true
+                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                    onDown()
                 }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    v.isPressed = false
-                    micHeld = false
-                    stopVoice()
-                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { view.isPressed = false; onUp() }
             }
             true
         }
     }
 
-    private fun startVoice() {
-        val s = session ?: return connect()
-        if (!s.voiceSupported) { micHeld = false; dictate(DICTATE_TO_TV); return }
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            micHeld = false
+    private fun hasMic() = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
+    private fun startDictation(target: Int) {
+        if (!hasMic()) {
+            pendingTarget = target
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_MIC)
             return
         }
+        if (!dictation.available) { dictateWithDialog(target); return }
+        dictationTarget = target
+        dictating = true
         statusText.text = getString(R.string.listening)
-        s.startVoice { id ->
-            main.post {
-                when {
-                    id == null -> { setStatus(Status.OK, getString(R.string.connected)); dictate(DICTATE_TO_TV) }
-                    !micHeld -> s.endVoice(id) // soltó antes de que el TV abriera la sesión
-                    else -> voice = VoiceStreamer(s, id).also { it.start() }
-                }
-            }
+        dictation.start()
+    }
+
+    private fun stopDictation() {
+        if (dictating) dictation.stop()
+    }
+
+    private fun showLive(text: String) {
+        if (dictationTarget == DICTATE_TO_FIELD) typeField.hint = text else statusText.text = "“$text”"
+    }
+
+    private fun onDictated(text: String) {
+        dictating = false
+        typeField.setHint(R.string.type_hint)
+        if (dictationTarget == DICTATE_TO_FIELD) {
+            typeField.append(if (typeField.text.isEmpty()) text else " $text")
+            typeField.setSelection(typeField.text.length)
+        } else {
+            typeOnTv(text)
         }
     }
 
-    private fun stopVoice() {
-        voice?.stop()
-        voice = null
+    private fun onDictationError(message: String) {
+        dictating = false
+        typeField.setHint(R.string.type_hint)
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         if (ready) setStatus(Status.OK, getString(R.string.connected))
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, results: IntArray) {
-        if (requestCode == REQ_MIC && results.firstOrNull() != PackageManager.PERMISSION_GRANTED) {
+        if (requestCode != REQ_MIC || pendingTarget < 0) return
+        val target = pendingTarget
+        pendingTarget = -1
+        if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "Listo: mantén el mic y habla", Toast.LENGTH_SHORT).show()
+        } else {
             Toast.makeText(this, R.string.mic_denied, Toast.LENGTH_SHORT).show()
-            dictate(DICTATE_TO_TV)
+            dictateWithDialog(target) // el diálogo de Google no necesita el permiso de esta app
         }
     }
 
-    /** Dictado del sistema (sin permiso de micrófono para esta app: lo maneja el reconocedor de Google). */
-    private fun dictate(target: Int) {
+    /** Respaldo: diálogo de dictado del sistema (sin permiso de micrófono para esta app). */
+    private fun dictateWithDialog(target: Int) {
         dictationTarget = target
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -449,13 +484,42 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (requestCode != REQ_DICTATE || resultCode != RESULT_OK) return
-        val text = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull() ?: return
-        if (dictationTarget == DICTATE_TO_FIELD) {
-            typeField.append(if (typeField.text.isEmpty()) text else " $text")
-            typeField.setSelection(typeField.text.length)
-        } else {
-            sendTextToTv(text)
+        data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let(::onDictated)
+    }
+
+    // ======================================================================
+    // Voz → Asistente del TV (audio crudo al TV, como el mic del control físico)
+    // ======================================================================
+
+    private fun startTvAssistant() {
+        val s = session ?: return connect()
+        if (!s.voiceSupported) {
+            Toast.makeText(this, "Tu TV no acepta voz desde el celular; usa el mic azul", Toast.LENGTH_LONG).show()
+            return
         }
+        if (!hasMic()) { requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_MIC); return }
+        micHeld = true
+        statusText.text = "Asistente del TV escuchando…"
+        s.startVoice { id ->
+            main.post {
+                when {
+                    id == null -> {
+                        Toast.makeText(this, "El TV no abrió el asistente", Toast.LENGTH_SHORT).show()
+                        if (ready) setStatus(Status.OK, getString(R.string.connected))
+                    }
+                    !micHeld -> s.endVoice(id) // soltó antes de que el TV abriera la sesión
+                    else -> voice = VoiceStreamer(s, id).also { it.start() }
+                }
+            }
+        }
+    }
+
+    private fun stopVoice() {
+        micHeld = false
+        voice?.stop()
+        voice = null
+        if (dictating) { dictation.stop(); dictating = false }
+        if (ready) setStatus(Status.OK, getString(R.string.connected))
     }
 
     // ======================================================================
@@ -464,7 +528,9 @@ class MainActivity : Activity() {
 
     private fun bindKeyboard() {
         findViewById<ImageButton>(R.id.sendText).setOnClickListener { submitTyped() }
-        findViewById<ImageButton>(R.id.dictate).setOnClickListener { dictate(DICTATE_TO_FIELD) }
+        findViewById<ImageButton>(R.id.dictate).setOnClickListener {
+            if (dictating) stopDictation() else startDictation(DICTATE_TO_FIELD)
+        }
         findViewById<ImageButton>(R.id.delKey).setOnClickListener { send(Keys.DEL) }
         findViewById<ImageButton>(R.id.enterKey).setOnClickListener { send(Keys.ENTER) }
         findViewById<ImageButton>(R.id.closeType).setOnClickListener { closeKeyboard() }
@@ -487,23 +553,31 @@ class MainActivity : Activity() {
     private fun submitTyped() {
         val text = typeField.text.toString()
         if (text.isBlank()) { send(Keys.ENTER); return }
-        sendTextToTv(text)
+        typeOnTv(text)
         typeField.text.clear()
     }
 
-    /**
-     * Si el TV tiene un campo de texto enfocado, el texto entra directo (con tildes, ñ y emojis).
-     * Si no, abre la búsqueda del TV y escribe ahí.
-     */
-    private fun sendTextToTv(text: String) {
+    private var keysHintShown = false
+
+    /** Escribe en el campo enfocado del TV: vía IME (con tildes) o tecla por tecla. */
+    private fun typeOnTv(text: String) {
         val s = session ?: return connect()
-        if (s.imeActive) {
-            s.text(text)
-        } else {
-            s.key(Keys.SEARCH)
-            main.postDelayed({ session?.text(text) }, 1_200)
+        val shown = if (text.length > 40) text.take(40) + "…" else text
+        when (s.type(text)) {
+            RemoteSession.TypeMode.IME -> statusText.text = "Escrito en el TV: “$shown”"
+            RemoteSession.TypeMode.KEYS -> {
+                statusText.text = "Tecleado en el TV: “$shown”"
+                if (!keysHintShown) {
+                    keysHintShown = true
+                    Toast.makeText(this, "Si no aparece, primero abre un buscador en el TV (ej. la lupa de YouTube)", Toast.LENGTH_LONG).show()
+                }
+            }
         }
+        main.removeCallbacks(restoreStatus)
+        main.postDelayed(restoreStatus, 4_000)
     }
+
+    private val restoreStatus = Runnable { if (ready) setStatus(Status.OK, getString(R.string.connected)) }
 
     // ======================================================================
     // Utilidades

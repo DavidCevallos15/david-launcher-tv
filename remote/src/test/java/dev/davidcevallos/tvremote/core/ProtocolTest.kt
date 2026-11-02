@@ -73,4 +73,11 @@ class ProtocolTest {
         assertArrayEquals(cert.encoded, back.certificate.encoded)
         assertEquals(id.publicKey.modulus, back.publicKey.modulus)
     }
+
+    @Test fun textToKeysStripsAccentsAndMapsSymbols() {
+        // "Canción 3 ñ" → c a n c i o n ␣ 3 ␣ n
+        assertEquals(listOf(31, 29, 42, 31, 37, 43, 42, 62, 10, 62, 42), TextKeys.toKeyCodes("Canción 3 ñ"))
+        assertEquals(listOf(77, 56), TextKeys.toKeyCodes("@."))
+        assertEquals(emptyList<Int>(), TextKeys.toKeyCodes("🎬"))
+    }
 }

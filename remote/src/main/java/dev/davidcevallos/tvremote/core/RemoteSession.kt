@@ -91,6 +91,22 @@ class RemoteSession private constructor(
 
     fun key(code: Int, direction: Int = Remote.SHORT) = post(Remote.key(code, direction))
 
+    enum class TypeMode { IME, KEYS }
+
+    /**
+     * Escribe en el TV. Si el TV anunció un campo de texto por el protocolo IME, el texto entra
+     * completo con tildes/ñ/emojis; si no, se teclea carácter a carácter (sin tildes), que
+     * funciona con cualquier teclado en pantalla.
+     */
+    fun type(value: String): TypeMode {
+        if (imeActive && features and Remote.F_IME != 0) {
+            text(value)
+            return TypeMode.IME
+        }
+        TextKeys.toKeyCodes(value).forEach { key(it) }
+        return TypeMode.KEYS
+    }
+
     fun text(value: String) {
         if (value.isNotEmpty()) post(Remote.text(value, imeCounter, fieldCounter))
     }
