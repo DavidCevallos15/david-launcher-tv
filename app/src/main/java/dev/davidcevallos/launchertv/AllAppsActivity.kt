@@ -1,6 +1,5 @@
 package dev.davidcevallos.launchertv
 
-import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.graphics.Typeface
 import android.os.Bundle
@@ -20,7 +19,7 @@ import java.util.concurrent.Executors
  * según el ancho real de la pantalla, así nada se sale ni se superpone en TVs de 720p, 1080p o 4K.
  * OK largo sobre una app la fija / quita del inicio.
  */
-class AllAppsActivity : Activity() {
+class AllAppsActivity : BaseActivity() {
 
     private val io = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
@@ -62,7 +61,7 @@ class AllAppsActivity : Activity() {
         // Cargar íconos de decenas de apps tarda: se hace fuera del hilo principal.
         io.execute {
             val entries = repo.allApps()
-            val pinned = repo.dockPackages().toSet()
+            val pinned = repo.pinnedPackages()
             main.post { if (!isFinishing && !isDestroyed) populate(entries, pinned) }
         }
     }
@@ -73,7 +72,7 @@ class AllAppsActivity : Activity() {
     }
 
     private fun populate(entries: List<AppEntry>, pinned: Set<String>) {
-        val screenW = resources.configuration.screenWidthDp.toFloat()
+        val screenW = screenWidthDp()
         val avail = screenW - 2 * PAD_DP
         val cols = ((avail + GAP_DP) / (TARGET_TILE_DP + GAP_DP)).toInt().coerceIn(3, 7)
         val tileW = (avail - GAP_DP * (cols - 1)) / cols
@@ -91,12 +90,7 @@ class AllAppsActivity : Activity() {
                 tile = tiles.appTile(
                     entry, tileW,
                     badge = entry.packageName in pinned,
-                    onLongClick = {
-                        val nowPinned = repo.togglePin(entry.packageName)
-                        tile.setBadge(nowPinned)
-                        val msg = if (nowPinned) R.string.pinned else R.string.unpinned
-                        Toast.makeText(this, getString(msg, entry.label), Toast.LENGTH_SHORT).show()
-                    },
+                    onLongClick = { chooseSection(entry, tile) },
                 ) {
                     try {
                         startActivity(entry.intent)
@@ -110,6 +104,35 @@ class AllAppsActivity : Activity() {
             content.addView(row, LinearLayout.LayoutParams(-2, -2).apply { bottomMargin = dp(16f) })
         }
         first?.requestFocus()
+    }
+
+    /** OK largo: elegir en qué sección del menú va la app (o crear una nueva / quitarla). */
+    private fun chooseSection(entry: AppEntry, tile: TileFactory.Tile) {
+        val sections = repo.sections()
+        val current = sections.indexOfFirst { entry.packageName in it.packages }
+        Dialogs.pickSection(
+            this, entry.label, sections, current,
+            onPick = { i ->
+                repo.pin(entry.packageName, i)
+                tile.setBadge(true)
+                Toast.makeText(this, getString(R.string.pinned_in, entry.label, sections[i].title), Toast.LENGTH_SHORT).show()
+            },
+            onNew = {
+                Dialogs.newSection(this) { name ->
+                    val list = repo.sections()
+                    list.forEach { it.packages.remove(entry.packageName) }
+                    list += Section(name, mutableListOf(entry.packageName))
+                    repo.saveSections(list)
+                    tile.setBadge(true)
+                    Toast.makeText(this, getString(R.string.pinned_in, entry.label, name), Toast.LENGTH_SHORT).show()
+                }
+            },
+            onRemove = {
+                repo.unpin(entry.packageName)
+                tile.setBadge(false)
+                Toast.makeText(this, getString(R.string.unpinned, entry.label), Toast.LENGTH_SHORT).show()
+            },
+        )
     }
 
     private fun dp(v: Float): Int =

@@ -38,8 +38,11 @@
     <!-- Widgets: reloj, fecha, saludo y clima. Siguen visibles cuando se oculta el menú. -->
     <include layout="@layout/widgets_header" />
 
-    <!-- Menú / dock -->
-    <HorizontalScrollView
+    <!-- Vista "solo wallpaper" (menú oculto): reloj centrado y grande, clima y reproductor -->
+    <include layout="@layout/widgets_showcase" />
+
+    <!-- Menú: una fila por sección; el scroll vertical muestra una a la vez (la altura se ajusta en código) -->
+    <ScrollView
         android:id="@+id/dockScroll"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -49,23 +52,21 @@
         android:layout_marginBottom="28dp"
         android:background="@drawable/bg_glass"
         android:clipToPadding="false"
-        android:fadingEdgeLength="48dp"
+        android:fadingEdgeLength="36dp"
         android:overScrollMode="never"
-        android:requiresFadingEdge="horizontal"
+        android:requiresFadingEdge="vertical"
         android:scrollbars="none">
 
         <LinearLayout
             android:id="@+id/dock"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:clipChildren="false"
             android:clipToPadding="false"
-            android:orientation="horizontal"
-            android:paddingStart="32dp"
-            android:paddingTop="22dp"
-            android:paddingEnd="32dp"
-            android:paddingBottom="16dp" />
-    </HorizontalScrollView>
+            android:orientation="vertical"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp" />
+    </ScrollView>
 
     <!-- Ayuda del modo "mover" -->
     <TextView
@@ -73,7 +74,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="236dp"
+        android:layout_marginBottom="270dp"
         android:paddingStart="26dp"
         android:paddingTop="12dp"
         android:paddingEnd="26dp"

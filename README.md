@@ -2,7 +2,7 @@
 
 Launcher minimalista para Android TV, inspirado en tvOS: fondo (degradado, imagen o video en loop) con selector integrado, widgets en vivo (reloj, fecha, saludo según la hora y clima), dock de apps que tú organizas, colores y fuentes editables, y cero recomendaciones ni publicidad.
 
-- **~230 KB** en release (incluye 4 fuentes opcionales), sin AndroidX ni librerías de terceros (framework puro + Kotlin)
+- **~260 KB** en release (incluye 4 fuentes opcionales), sin AndroidX ni librerías de terceros (framework puro + Kotlin)
 - **Sin root**, sin desbloquear bootloader, 100 % reversible
 - Fondos leídos del almacenamiento propio de la app: no van en el APK ni en el repo
 - Android 5.0+ (API 21): Android TV, Google TV y Fire TV. Probado en TCL BeyondTV2 (Android TV 11)
@@ -41,15 +41,34 @@ Si al presionar Home el TV sigue abriendo el launcher de fábrica:
 
 | Acción | Cómo |
 |---|---|
-| Ver solo el fondo con los widgets | **▲** en el dock oculta el menú; cualquier botón (o Atrás) lo vuelve a abrir. En Personalizar puedes hacer que se oculte solo (10 s / 30 s / 1 min) |
-| Personalizar | Tarjeta **Editar** (extremo izquierdo del dock) o la tecla **MENÚ**: fuente y tamaño del reloj, fuente de fecha y saludo, formato 12/24 h, qué widgets se ven, ciudad y unidades del clima, color de acento, color del reloj, estilo de las barras, saludo de bienvenida |
-| Mover una app del dock | Mantén **OK** sobre ella (o *Organizar apps del inicio* en Personalizar) → **◀ ▶** la mueven, **OK** la suelta, **▲** la quita del dock |
-| Fijar una app nueva | **Apps** → mantén **OK** sobre la app (marca verde = en inicio) |
-| Cambiar fondo | Tarjeta **Fondos** → recorre con ◀/▶ (vista previa a pantalla completa) → **OK** para aplicar. **Automático** rota uno distinto cada día |
+| Ver solo el fondo con los widgets | **▲** desde la primera fila oculta el menú: reloj grande y centrado, saludo, clima y reproductor. **▼** o Atrás lo abren. Puede ocultarse solo (10 s / 30 s / 1 min) |
+| Controlar la música que suena en segundo plano | Con el menú oculto: **◀ ▶ OK** sobre ⏮ ⏯ ⏭ ✕ (✕ detiene y cierra la app). Con el menú abierto verás una pastilla "Reproduciendo" junto al reloj |
+| Apps abiertas | Tarjeta **Apps abiertas** (fila *Sistema*): **OK** continúa donde quedaste, **▲** cierra la app y libera RAM, *Cerrar todas* |
+| Personalizar | **◀** sobre la primera app muestra la tarjeta **Editar** (escondida el resto del tiempo), o la tecla **MENÚ** |
+| Secciones del menú | Personalizar → *Secciones*: crea filas con los nombres sugeridos (Streaming, Música, Navegador, Juegos…) o con el texto que quieras; renombra, sube, baja o elimina |
+| Asignar una app a una sección | **Apps** → mantén **OK** sobre la app → elige la sección (o *Nueva sección…*, o quitarla) |
+| Mover una app | Mantén **OK** sobre ella en el menú → **◀ ▶** reordena, **▲ ▼** la pasa de sección, **OK** suelta, **MENÚ** la quita |
+| Cambiar fondo | Tarjeta **Fondos** → ◀/▶ (vista previa a pantalla completa) → **OK**. **Automático** rota uno distinto cada día |
+| Achicar o agrandar todo | Personalizar → *Zoom de toda la interfaz* (70–130 %) y *Tamaño de las tarjetas* |
 
 **Saludo:** "Buenos días / Buenas tardes / Buenas noches, David" arriba a la derecha (de 0 a 5 h: "¿Madrugando, eh, David?"). La bienvenida "Bienvenido, mi rey David" dura ~2 s y solo sale al arrancar el TV, al encenderlo tras apagar la pantalla, o pasadas 6 h; no al volver de otras apps.
 
-**Clima:** [Open-Meteo](https://open-meteo.com) (gratis, sin cuenta). Con la ciudad en *Automática* se ubica por tu IP pública (ipwho.is, con geojs.io de respaldo); si prefieres no enviar tu IP, elige una ciudad de la lista. Sin internet se muestra el último clima guardado. Es el único permiso de red que usa la app.
+**Clima:** [Open-Meteo](https://open-meteo.com) (gratis, sin cuenta). Con la ciudad en *Automática* se ubica por tu IP pública (ipwho.is, con geojs.io de respaldo); si prefieres no enviar tu IP, elige una ciudad de la lista. Sin internet se muestra el último clima guardado.
+
+### Permisos y por qué
+
+| Permiso | Para qué | Cómo se concede |
+|---|---|---|
+| Internet | Clima | Automático |
+| Cerrar procesos en segundo plano | *Cerrar* una app de Apps abiertas o la que suena | Automático |
+| Acceso a notificaciones | Android lo exige para ver y controlar las sesiones de medios (Spotify, YouTube Music…). **No lee tus notificaciones** | Personalizar → *Permiso para controlar la música*, o `adb shell cmd notification allow_listener dev.davidcevallos.launchertv/dev.davidcevallos.launchertv.MediaListenerService` |
+| Acceso a datos de uso | Único modo de saber qué apps siguen abiertas en Android 11 | Personalizar → *Acceso para ver las apps abiertas*, o `adb shell appops set dev.davidcevallos.launchertv GET_USAGE_STATS allow` |
+
+Sin los dos últimos el launcher funciona igual; solo faltan el reproductor y la lista de apps abiertas.
+
+### Límites reales de la RAM
+
+El sistema, no el launcher, decide qué apps se quedan en memoria. En un TV de 2 GB (≈550 MB libres) Android cierra solo las apps pesadas (Netflix, Disney+) al abrir otras, y el launcher no puede impedirlo. Lo que sí hace: mostrarte cuáles siguen vivas (*continuar* las retoma exactamente donde las dejaste), dejarte cerrar las que no uses y mantenerse ligero (≈100 MB con un fondo de video; menos con imagen o degradado).
 
 Los degradados vienen integrados; tus imágenes/videos (`push-wallpapers.sh`) aparecen primero en Fondos.
 
@@ -68,6 +87,7 @@ adb uninstall dev.davidcevallos.launchertv
 | Degradados integrados | `WallpaperStore.PRESETS` |
 | Fuentes, colores, estilos de barra | `Theme` (cada opción nueva aparece sola en Personalizar) |
 | Ciudades del clima | `WeatherRepository.CITIES` |
+| Nombres sugeridos de sección | `SectionStore.PRESETS` |
 | Tu nombre en el saludo | `LauncherConfig.USER_NAME` |
 | Duración del crossfade | `LauncherConfig.CROSSFADE_MS` |
 | Orden de rotación automática | Nombre de archivo (`001.jpg`, `002.jpg`…), un fondo por día; sin archivos rota los degradados |
@@ -79,7 +99,11 @@ Las apps que instales desde Play Store aparecen en **Apps** sin tocar código.
 
 | Archivo | Responsabilidad |
 |---|---|
-| `MainActivity` | Home: dock, modo mover, ocultar menú, bienvenida |
+| `MainActivity` | Home: menú por secciones, modo mover, ocultar menú, bienvenida |
+| `MediaHub` / `NowPlayingCard` | Qué suena en segundo plano y sus controles (sesiones de medios del sistema) |
+| `OpenAppsRepository` / `OpenAppsActivity` | Apps abiertas: continuar y cerrar |
+| `SectionStore` / `SectionsActivity` | Secciones del menú (JSON en preferencias) y su editor |
+| `BaseActivity` | Zoom de toda la interfaz (cambia la densidad, así escala todo a la vez) |
 | `HeaderController` | Widgets de arriba (reloj, fecha, saludo, clima); lo comparten Home y Personalizar |
 | `CustomizeActivity` | Personalizar, con vista previa en vivo |
 | `WeatherRepository` / `WeatherIconView` | Clima (Open-Meteo) e ícono dibujado en código |

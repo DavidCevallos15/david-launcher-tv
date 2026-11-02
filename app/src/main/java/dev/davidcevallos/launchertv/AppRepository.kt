@@ -18,37 +18,44 @@ data class AppEntry(
 class AppRepository(private val context: Context) {
 
     private val pm: PackageManager = context.packageManager
-    private val prefs = LauncherPrefs(context)
+    private val sectionStore = SectionStore(context)
+
+    fun hasLauncher(pkg: String): Boolean = launchIntent(pkg) != null
 
     private fun launchIntent(pkg: String): Intent? =
         pm.getLeanbackLaunchIntentForPackage(pkg) ?: pm.getLaunchIntentForPackage(pkg)
 
-    /** Paquetes que se ven ahora mismo en el dock (instalados y habilitados), en orden. Barato: no carga íconos. */
-    fun dockPackages(): List<String> {
-        val custom = prefs.dockPackages
-        val source = custom ?: LauncherConfig.defaultDockCandidates
-        val installed = source.filter { launchIntent(it) != null }
-        return if (custom == null) installed.take(LauncherConfig.DEFAULT_DOCK_MAX) else installed
-    }
+    /** Secciones del menú tal como están guardadas (con apps no instaladas incluidas). */
+    fun sections(): MutableList<Section> = sectionStore.load { hasLauncher(it) }
 
-    /** Apps fijadas en el dock. */
-    fun dockApps(): List<AppEntry> = dockPackages().mapNotNull { resolvePackage(it) }
+    fun saveSections(list: List<Section>) = sectionStore.save(list)
 
-    /** Fija o quita [pkg] del dock. Devuelve true si quedó fijada. */
-    fun togglePin(pkg: String): Boolean {
-        val current = dockPackages()
-        val pinned = pkg !in current
-        prefs.dockPackages = if (pinned) current + pkg else current - pkg
-        return pinned
-    }
+    /** Paquetes instalados que están fijados en alguna sección. Barato: no carga íconos. */
+    fun pinnedPackages(): Set<String> =
+        sections().flatMap { it.packages }.filter { hasLauncher(it) }.toSet()
 
-    /** Guarda el orden del dock tal como lo dejó el usuario al mover tarjetas. */
-    fun setDockOrder(packages: List<String>) {
-        prefs.dockPackages = packages
+    /** Fija [pkg] al final de la sección [sectionIndex] (la quita de donde estuviera). */
+    fun pin(pkg: String, sectionIndex: Int) {
+        val list = sections()
+        list.forEach { it.packages.remove(pkg) }
+        list.getOrNull(sectionIndex)?.packages?.add(pkg)
+        saveSections(list)
     }
 
     fun unpin(pkg: String) {
-        prefs.dockPackages = dockPackages() - pkg
+        val list = sections()
+        list.forEach { it.packages.remove(pkg) }
+        saveSections(list)
+    }
+
+    /** Solo los nombres de paquete de las apps con ícono de lanzador (sin cargar íconos: es barato). */
+    fun launchablePackages(): Set<String> {
+        val result = LinkedHashSet<String>()
+        for (category in listOf(Intent.CATEGORY_LEANBACK_LAUNCHER, Intent.CATEGORY_LAUNCHER)) {
+            pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(category), 0)
+                .forEach { result += it.activityInfo.packageName }
+        }
+        return result
     }
 
     /** Todas las apps lanzables (TV primero, luego las de categoría LAUNCHER normal). */
@@ -67,7 +74,7 @@ class AppRepository(private val context: Context) {
         return result.sortedBy { it.label.lowercase() }
     }
 
-    private fun resolvePackage(pkg: String): AppEntry? {
+    fun resolvePackage(pkg: String): AppEntry? {
         val intent = launchIntent(pkg) ?: return null
         val info = pm.resolveActivity(intent, 0) ?: return null
         return fromResolveInfo(info, null, intent)

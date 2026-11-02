@@ -1,8 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Solo para el clima (Open-Meteo); sin red el launcher funciona igual y muestra el último clima guardado -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Para "Cerrar" una app de Apps abiertas o la que suena (solo procesos en segundo plano; el sistema decide) -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+
+    <!-- Permiso especial ("Acceso a datos de uso"): el único modo de saber qué apps siguen abiertas en Android 11 -->
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -50,6 +59,27 @@
 
         <activity
             android:name=".AllAppsActivity"
+            android:exported="false"
+            android:screenOrientation="landscape" />
+
+        <!-- Sin esto Android no deja ver ni controlar las sesiones de medios (Spotify, YouTube Music...). No lee notificaciones. -->
+        <service
+            android:name=".MediaListenerService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <activity
+            android:name=".OpenAppsActivity"
+            android:exported="false"
+            android:screenOrientation="landscape" />
+
+        <activity
+            android:name=".SectionsActivity"
             android:exported="false"
             android:screenOrientation="landscape" />
 

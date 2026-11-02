@@ -19,7 +19,25 @@
     <string name="welcome">Bienvenido, mi rey David</string>
     <string name="edit">Editar</string>
     <string name="clean_hint">Pulsa cualquier botón para abrir el menú</string>
-    <string name="move_hint">Moviendo %1$s   ◀ ▶ mover   OK listo   ▲ quitar de inicio</string>
     <string name="customize_title">Personalizar</string>
     <string name="customize_hint">◀ ▶ cambia el valor · se ve al instante arriba</string>
+    <string name="move_hint">Moviendo %1$s   ◀ ▶ mover   ▲ ▼ cambiar de sección   OK listo   MENÚ quitar</string>
+    <string name="open_apps">Apps abiertas</string>
+    <string name="open_apps_hint">OK continúa donde quedaste (si Android la conservó en RAM) · ▲ cierra la app y libera memoria</string>
+    <string name="open_apps_empty">No hay apps abiertas en segundo plano</string>
+    <string name="open_apps_mem">Memoria libre: %1$d MB de %2$d MB</string>
+    <string name="close_all">Cerrar todas</string>
+    <string name="clean_hint_player">◀ ▶ OK controlan la música · ▼ abre el menú</string>
+    <string name="system_section">Sistema</string>
+    <string name="section_empty">Vacía — mantén OK sobre una app en Apps para añadirla aquí</string>
+    <string name="pinned_in">%1$s fijada en %2$s</string>
+    <string name="sections_title">Secciones del menú</string>
+    <string name="sections_hint">OK sobre una sección para renombrarla, moverla o eliminarla</string>
+    <string name="open_apps_need_access">Para ver qué apps siguen abiertas, Android pide activar «Acceso a datos de uso» para David Launcher TV</string>
+    <string name="grant_access">Activar acceso</string>
+    <string name="usage_access_manual">Actívalo en Ajustes › Apps › Acceso especial › Acceso a datos de uso › David Launcher TV</string>
+    <plurals name="open_apps_count">
+        <item quantity="one">%d app abierta</item>
+        <item quantity="other">%d apps abiertas</item>
+    </plurals>
 </resources>

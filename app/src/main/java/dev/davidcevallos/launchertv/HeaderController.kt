@@ -19,7 +19,20 @@ import java.util.concurrent.Executors
  *
  * Ciclo de vida: [start] en onResume, [stop] en onPause, [release] en onDestroy.
  */
-class HeaderController(private val context: Context, root: View) {
+class HeaderController(
+    private val context: Context,
+    root: View,
+    /** Multiplica el tamaño del reloj: la versión "solo wallpaper" lo muestra más grande. */
+    private val scale: Float = 1f,
+    /** false = la tarjeta del clima oculta humedad y viento (versión compacta). */
+    private val details: Boolean = true,
+    /** false = no descarga el clima: lo recibe de otro controlador vía [setWeather]. */
+    private val fetchWeather: Boolean = true,
+) {
+
+    /** Avisa cuando llega clima nuevo, para compartirlo con otro controlador sin descargarlo dos veces. */
+    var onWeather: ((Weather?) -> Unit)? = null
+
 
     private val prefs = LauncherPrefs(context)
     private val weatherRepo = WeatherRepository(context)
@@ -62,7 +75,13 @@ class HeaderController(private val context: Context, root: View) {
         main.removeCallbacks(tick)
         main.post(tick)
         main.removeCallbacks(weatherTick)
-        main.post(weatherTick)
+        if (fetchWeather) main.post(weatherTick) else setWeather(weatherRepo.cached())
+    }
+
+    /** Recibe el clima de otro controlador. */
+    fun setWeather(w: Weather?) {
+        weather = w
+        renderWeather()
     }
 
     fun stop() {
@@ -82,13 +101,13 @@ class HeaderController(private val context: Context, root: View) {
         val clockColor = Theme.color(prefs.clockColor).color
 
         clock.typeface = Theme.font(prefs.clockFont).typeface(context)
-        clock.textSize = size.sp
+        clock.textSize = size.sp * scale
         clock.setTextColor(clockColor)
         clock.visibility = vis(prefs.showClock)
 
         val dateTypeface = Theme.font(prefs.dateFont).typeface(context)
         date.typeface = dateTypeface
-        date.textSize = (size.sp * 0.34f).coerceIn(17f, 30f)
+        date.textSize = (size.sp * scale * 0.34f).coerceIn(17f, 34f)
         date.setTextColor(Theme.withAlpha(clockColor, 0.92f))
         date.visibility = vis(prefs.showDate)
 
@@ -124,6 +143,7 @@ class HeaderController(private val context: Context, root: View) {
         if (weather == null && cached != null) {
             weather = cached
             renderWeather()
+            onWeather?.invoke(cached)
         }
         if (!force && weatherRepo.isFresh(cached)) return
         try {
@@ -133,6 +153,7 @@ class HeaderController(private val context: Context, root: View) {
                     if (!running) return@post
                     weather = fresh
                     renderWeather()
+                    onWeather?.invoke(fresh)
                 }
             }
         } catch (_: java.util.concurrent.RejectedExecutionException) {
@@ -144,6 +165,7 @@ class HeaderController(private val context: Context, root: View) {
     fun reloadWeather() {
         weather = null
         weatherCard.visibility = View.GONE
+        onWeather?.invoke(null)
         refreshWeather(force = true)
     }
 
@@ -158,6 +180,7 @@ class HeaderController(private val context: Context, root: View) {
         weatherTemp.text = "${w.temp}°"
         weatherCond.text = WeatherRepository.describe(w.code)
         weatherRange.text = "Máx ${w.max}° · Mín ${w.min}° · Sensación ${w.feels}$u"
+        weatherExtra.visibility = if (details) View.VISIBLE else View.GONE
         weatherExtra.text = buildString {
             append("Humedad ${w.humidity}% · Viento ${w.windKmh} km/h")
             if (w.city.isNotBlank()) append(" · ${w.city}")

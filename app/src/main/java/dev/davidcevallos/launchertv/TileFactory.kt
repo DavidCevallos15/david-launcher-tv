@@ -29,8 +29,14 @@ class TileFactory(private val context: Context) {
         val root: View,
         private val image: ImageView,
         private val badge: View,
+        private val liveDot: View,
         private val onMoving: (Boolean) -> Unit,
     ) {
+        /** Punto de color en la esquina: la app está en uso en segundo plano (suena música, etc.). */
+        fun setLive(on: Boolean) {
+            liveDot.visibility = if (on) View.VISIBLE else View.GONE
+        }
+
         fun setImage(d: Drawable?) = image.setImageDrawable(d)
 
         /** Modo "mover": la tarjeta queda levantada y resaltada aunque cambie de sitio. */
@@ -48,16 +54,17 @@ class TileFactory(private val context: Context) {
         entry: AppEntry,
         widthDp: Float,
         badge: Boolean = false,
+        live: Boolean = false,
         onLongClick: (() -> Unit)? = null,
         onClick: () -> Unit,
-    ): Tile = build(entry.label, entry.banner, entry.icon, widthDp, badge, onClick, onLongClick)
+    ): Tile = build(entry.label, entry.banner, entry.icon, widthDp, badge, live, onClick, onLongClick)
 
     fun actionTile(label: String, icon: Drawable?, widthDp: Float, onClick: () -> Unit): Tile =
-        build(label, null, icon, widthDp, false, onClick, null)
+        build(label, null, icon, widthDp, false, false, onClick, null)
 
     /** Tarjeta sin imagen todavía (miniaturas que se cargan en segundo plano): usar [Tile.setImage]. */
     fun mediaTile(label: String, widthDp: Float, badge: Boolean, onClick: () -> Unit): Tile =
-        build(label, null, null, widthDp, badge, onClick, null)
+        build(label, null, null, widthDp, badge, false, onClick, null)
 
     private fun build(
         label: String,
@@ -65,6 +72,7 @@ class TileFactory(private val context: Context) {
         icon: Drawable?,
         widthDp: Float,
         badge: Boolean,
+        live: Boolean,
         onClick: () -> Unit,
         onLongClick: (() -> Unit)?,
     ): Tile {
@@ -122,6 +130,12 @@ class TileFactory(private val context: Context) {
             marginEnd = dp(8f)
         })
 
+        val liveDot = LiveDot(context, accent).apply { visibility = if (live) View.VISIBLE else View.GONE }
+        card.addView(liveDot, FrameLayout.LayoutParams(dp(16f), dp(16f), Gravity.TOP or Gravity.START).apply {
+            topMargin = dp(9f)
+            marginStart = dp(9f)
+        })
+
         // Apps sin banner (solo ícono) no se reconocen sin nombre: la etiqueta queda siempre visible.
         val restAlpha = if (iconOnly) 0.7f else 0f
         val caption = TextView(context).apply {
@@ -165,7 +179,7 @@ class TileFactory(private val context: Context) {
             root.translationZ = if (up) 1f else 0f
         }
         root.setOnFocusChangeListener { _, focused -> render(focused) }
-        return Tile(root, image, check) { on ->
+        return Tile(root, image, check, liveDot) { on ->
             moving = on
             render(root.hasFocus())
         }
@@ -192,6 +206,22 @@ class TileFactory(private val context: Context) {
             path.lineTo(w * 0.44f, h * 0.68f)
             path.lineTo(w * 0.74f, h * 0.34f)
             canvas.drawPath(path, stroke)
+        }
+    }
+
+    /** Punto de "en uso": círculo del color de acento con borde blanco para que se vea sobre cualquier banner. */
+    private class LiveDot(context: Context, private val color: Int) : View(context) {
+        private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = this@LiveDot.color }
+        private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = Color.WHITE
+            style = Paint.Style.STROKE
+            strokeWidth = 3f
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            val r = width / 2f
+            canvas.drawCircle(r, r, r - 2f, fill)
+            canvas.drawCircle(r, r, r - 2f, ring)
         }
     }
 }

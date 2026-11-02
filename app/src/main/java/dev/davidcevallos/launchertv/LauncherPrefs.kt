@@ -28,6 +28,27 @@ class LauncherPrefs(context: Context) {
         get() = sp.getBoolean(KEY_PENDING_MOVE, false)
         set(value) = put(KEY_PENDING_MOVE, value)
 
+    /** Secciones del menú (JSON propio, ver [SectionStore]); null = aún no se personalizó. */
+    var sectionsJson: String?
+        get() = sp.getString(KEY_SECTIONS, null)
+        set(value) = if (value == null) sp.edit().remove(KEY_SECTIONS).apply() else put(KEY_SECTIONS, value)
+
+    // ---------- Interfaz ----------
+
+    /** Zoom de toda la interfaz en % (70–130): achica o agranda todos los componentes a la vez. */
+    var uiZoom: Int
+        get() = sp.getInt(KEY_ZOOM, 100)
+        set(value) = sp.edit().putInt(KEY_ZOOM, value).apply()
+
+    /** Tamaño de las tarjetas del menú en % (80–130), aparte del zoom general. */
+    var tileScale: Int
+        get() = sp.getInt(KEY_TILE_SCALE, 100)
+        set(value) = sp.edit().putInt(KEY_TILE_SCALE, value).apply()
+
+    var showPlayer: Boolean
+        get() = sp.getBoolean(KEY_SHOW_PLAYER, true)
+        set(value) = put(KEY_SHOW_PLAYER, value)
+
     // ---------- Reloj y fecha ----------
 
     var clockFont: String
@@ -129,6 +150,7 @@ class LauncherPrefs(context: Context) {
             .remove(KEY_CLOCK_FONT).remove(KEY_CLOCK_SIZE).remove(KEY_DATE_FONT).remove(KEY_HOUR_FORMAT)
             .remove(KEY_SHOW_CLOCK).remove(KEY_SHOW_DATE).remove(KEY_SHOW_GREETING).remove(KEY_SHOW_WEATHER)
             .remove(KEY_ACCENT).remove(KEY_CLOCK_COLOR).remove(KEY_GLASS)
+            .remove(KEY_ZOOM).remove(KEY_TILE_SCALE).remove(KEY_SHOW_PLAYER)
             .apply()
     }
 
@@ -139,6 +161,10 @@ class LauncherPrefs(context: Context) {
     private companion object {
         const val KEY_WALLPAPER = "wallpaper"
         const val KEY_DOCK = "dock"
+        const val KEY_SECTIONS = "sections"
+        const val KEY_ZOOM = "ui_zoom"
+        const val KEY_TILE_SCALE = "tile_scale"
+        const val KEY_SHOW_PLAYER = "show_player"
         const val KEY_PENDING_MOVE = "pending_move"
         const val KEY_CLOCK_FONT = "clock_font"
         const val KEY_CLOCK_SIZE = "clock_size"

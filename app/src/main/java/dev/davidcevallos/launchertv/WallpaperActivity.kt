@@ -1,6 +1,5 @@
 package dev.davidcevallos.launchertv
 
-import android.app.Activity
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
@@ -17,7 +16,7 @@ import java.util.concurrent.Executors
  * Selector de fondos. El fondo de pantalla completa muestra en vivo el que tienes enfocado;
  * OK lo aplica y vuelve a Home. "Automático" rota un fondo distinto cada día.
  */
-class WallpaperActivity : Activity() {
+class WallpaperActivity : BaseActivity() {
 
     private val io = Executors.newFixedThreadPool(2)            // miniaturas
     private val previewIo = Executors.newSingleThreadExecutor() // vista previa: no espera detrás de las miniaturas
@@ -51,7 +50,7 @@ class WallpaperActivity : Activity() {
         val row = findViewById<LinearLayout>(R.id.wpRow)
         // Si el fondo guardado ya no existe (borraste el archivo), el efectivo es el automático.
         val selected = store.selectedId.takeIf { id -> all.any { it.id == id } } ?: WallpaperStore.AUTO
-        val tileW = (resources.configuration.screenWidthDp * 0.17f).coerceIn(160f, 240f)
+        val tileW = (unzoomedWidthDp() * 0.17f).coerceIn(160f, 240f)
         val gap = dp(24f)
         var focusTarget: android.view.View? = null
         var focusIndex = 0

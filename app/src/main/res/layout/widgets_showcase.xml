@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lo que se ve al ocultar el menú: reloj grande y centrado, saludo, clima y reproductor. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/showcase"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:alpha="0"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:paddingBottom="12dp"
+    android:visibility="gone">
+
+    <TextView
+        android:id="@+id/clock"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:shadowColor="#99000000"
+        android:shadowDy="3"
+        android:shadowRadius="14"
+        android:textColor="#FFFFFF"
+        android:textSize="56sp" />
+
+    <TextView
+        android:id="@+id/date"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:gravity="center"
+        android:shadowColor="#99000000"
+        android:shadowDy="2"
+        android:shadowRadius="10"
+        android:textColor="#E6FFFFFF"
+        android:textSize="22sp" />
+
+    <TextView
+        android:id="@+id/greetingLine"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:shadowColor="#99000000"
+        android:shadowDy="2"
+        android:shadowRadius="10"
+        android:textColor="#FFFFFF"
+        android:textSize="26sp" />
+
+    <LinearLayout
+        android:id="@+id/showcaseCards"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="26dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <include
+            layout="@layout/widget_weather_card"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+</LinearLayout>
