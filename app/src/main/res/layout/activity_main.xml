@@ -80,9 +80,13 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:layout_marginBottom="40dp"
-        android:clipChildren="false"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp"
+        android:layout_marginBottom="28dp"
+        android:background="@drawable/bg_glass"
         android:clipToPadding="false"
+        android:fadingEdgeLength="48dp"
+        android:requiresFadingEdge="horizontal"
         android:overScrollMode="never"
         android:scrollbars="none">
 
@@ -93,9 +97,10 @@
             android:clipChildren="false"
             android:clipToPadding="false"
             android:orientation="horizontal"
-            android:paddingStart="64dp"
-            android:paddingTop="24dp"
-            android:paddingEnd="64dp" />
+            android:paddingStart="32dp"
+            android:paddingTop="22dp"
+            android:paddingEnd="32dp"
+            android:paddingBottom="16dp" />
     </HorizontalScrollView>
 
     <!-- Bienvenida: aparece una vez al arrancar el TV y se desvanece sola -->

@@ -2,7 +2,7 @@
 
 Launcher minimalista para Android TV, inspirado en tvOS: fondo (degradado, imagen o video en loop) con selector integrado, bienvenida al arrancar, reloj, dock de apps que tú eliges y cero recomendaciones ni publicidad.
 
-- **~64 KB** en release, sin AndroidX ni librerías de terceros (framework puro + Kotlin)
+- **~70 KB** en release, sin AndroidX ni librerías de terceros (framework puro + Kotlin)
 - **Sin root**, sin desbloquear bootloader, 100 % reversible
 - Fondos leídos del almacenamiento propio de la app: no van en el APK ni en el repo
 - Android 5.0+ (API 21): Android TV, Google TV y Fire TV. Probado en TCL BeyondTV2 (Android TV 11)

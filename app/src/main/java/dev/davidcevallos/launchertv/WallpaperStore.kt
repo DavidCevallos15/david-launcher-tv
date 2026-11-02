@@ -45,6 +45,7 @@ class WallpaperStore(context: Context) {
 
     private val dir: File? = context.getExternalFilesDir(LauncherConfig.WALLPAPER_DIR)
     private val prefs = LauncherPrefs(context)
+    private val frameCache = File(context.cacheDir, "frames").apply { mkdirs() }
 
     val selectedId: String get() = prefs.wallpaperId
 
@@ -95,7 +96,7 @@ class WallpaperStore(context: Context) {
                     renderPreset(item.preset!!, w, w * 9 / 16)
                 }
                 WallpaperItem.Kind.IMAGE -> decodeSampled(item.file!!, maxW, maxH, config)
-                WallpaperItem.Kind.VIDEO -> videoFrame(item.file!!, maxW)
+                WallpaperItem.Kind.VIDEO -> cachedVideoFrame(item.file!!, maxW)
             }
         }.getOrNull()
 
@@ -127,6 +128,16 @@ class WallpaperStore(context: Context) {
             inPreferredConfig = config
         }
         return BitmapFactory.decodeFile(file.absolutePath, opts)
+    }
+
+    /** Sacar un fotograma de un video 1080p es lento en un TV: se guarda como JPEG pequeño y las siguientes veces es instantáneo. */
+    private fun cachedVideoFrame(file: File, maxW: Int): Bitmap? {
+        val key = "${file.name}_${file.length()}_${file.lastModified()}_$maxW.jpg".replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val cached = File(frameCache, key)
+        if (cached.isFile) BitmapFactory.decodeFile(cached.absolutePath)?.let { return it }
+        val frame = videoFrame(file, maxW) ?: return null
+        runCatching { cached.outputStream().use { frame.compress(Bitmap.CompressFormat.JPEG, 82, it) } }
+        return frame
     }
 
     private fun videoFrame(file: File, maxW: Int): Bitmap? {

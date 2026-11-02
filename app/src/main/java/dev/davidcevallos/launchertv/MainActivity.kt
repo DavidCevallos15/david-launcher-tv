@@ -36,6 +36,7 @@ class MainActivity : Activity() {
     private lateinit var timeFmt: SimpleDateFormat
     private val dateFmt = SimpleDateFormat("EEEE, d 'de' MMMM", locale)
     private var lastFocusIndex = 0
+    private var greetingShowing = false
 
     private val clockTick = object : Runnable {
         override fun run() {
@@ -77,7 +78,15 @@ class MainActivity : Activity() {
     override fun onPause() {
         super.onPause()
         main.removeCallbacks(clockTick)
-        main.removeCallbacks(hideGreeting)
+        // Si el sistema nos pausa a mitad de la bienvenida (splash, otra app), no se queda pegada:
+        // se oculta y se vuelve a mostrar completa en el próximo onResume.
+        if (greetingShowing) {
+            main.removeCallbacks(hideGreeting)
+            greeting.animate().cancel()
+            greeting.visibility = View.GONE
+            greetingShowing = false
+            greeted = false
+        }
         wallpapers.stop()
     }
 
@@ -96,6 +105,7 @@ class MainActivity : Activity() {
     private fun showGreeting() {
         if (greeted) return
         greeted = true
+        greetingShowing = true
         greetingSmall.setText(
             when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
                 in 5..11 -> R.string.good_morning
@@ -111,7 +121,10 @@ class MainActivity : Activity() {
 
     private val hideGreeting = Runnable {
         greeting.animate().alpha(0f).setDuration(900L)
-            .withEndAction { greeting.visibility = View.GONE }.start()
+            .withEndAction {
+                greeting.visibility = View.GONE
+                greetingShowing = false
+            }.start()
     }
 
     // ---------- Dock ----------

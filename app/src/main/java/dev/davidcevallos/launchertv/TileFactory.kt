@@ -117,7 +117,7 @@ class TileFactory(private val context: Context) {
         val caption = TextView(context).apply {
             text = label
             setTextColor(Color.WHITE)
-            textSize = 15f
+            textSize = 16f
             alpha = restAlpha
             gravity = Gravity.CENTER
             setShadowLayer(8f, 0f, 2f, Color.argb(160, 0, 0, 0))

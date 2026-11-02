@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Barra "vidrio" para la capa de navegación: relleno translúcido con brillo arriba y borde fino. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient android:angle="270" android:startColor="#33FFFFFF" android:endColor="#14FFFFFF" />
+    <corners android:radius="28dp" />
+    <stroke android:width="1dp" android:color="#40FFFFFF" />
+</shape>

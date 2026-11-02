@@ -19,7 +19,8 @@ import java.util.concurrent.Executors
  */
 class WallpaperActivity : Activity() {
 
-    private val io = Executors.newFixedThreadPool(2)
+    private val io = Executors.newFixedThreadPool(2)            // miniaturas
+    private val previewIo = Executors.newSingleThreadExecutor() // vista previa: no espera detrás de las miniaturas
     private val main = Handler(Looper.getMainLooper())
     private lateinit var store: WallpaperStore
     private lateinit var backdrop: ImageView
@@ -44,6 +45,8 @@ class WallpaperActivity : Activity() {
         val tileW = (resources.configuration.screenWidthDp * 0.17f).coerceIn(160f, 240f)
         val gap = dp(24f)
         var focusTarget: android.view.View? = null
+        var focusIndex = 0
+        val thumbJobs = ArrayList<Triple<Int, WallpaperItem, TileFactory.Tile>>()
 
         val autoPick = store.autoPick()
         val entries = buildList {
@@ -51,7 +54,7 @@ class WallpaperActivity : Activity() {
             all.forEach { add(Entry(it.id, it.name, kindLabel(it), it)) }
         }
 
-        entries.forEach { e ->
+        entries.forEachIndexed { index, e ->
             val tile = tiles.mediaTile(e.name, tileW, badge = e.id == selected) {
                 store.select(e.id)
                 Toast.makeText(this, getString(R.string.wallpaper_applied, e.name), Toast.LENGTH_SHORT).show()
@@ -63,8 +66,12 @@ class WallpaperActivity : Activity() {
                 if (has) showPreview(e)
             }
             row.addView(tile.root, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = gap })
-            if (e.id == selected) focusTarget = tile.root
-            e.item?.let { item -> loadThumb(item) { bmp -> tile.setImage(BitmapDrawable(resources, bmp)) } }
+            if (e.id == selected) { focusTarget = tile.root; focusIndex = index }
+            e.item?.let { item -> thumbJobs += Triple(index, item, tile) }
+        }
+        // Primero las miniaturas más cercanas a donde empieza el foco; el resto se rellena mientras recorres.
+        thumbJobs.sortedBy { kotlin.math.abs(it.first - focusIndex) }.forEach { (_, item, tile) ->
+            loadThumb(item) { bmp -> tile.setImage(BitmapDrawable(resources, bmp)) }
         }
         (focusTarget ?: row.getChildAt(0))?.requestFocus()
     }
@@ -72,6 +79,7 @@ class WallpaperActivity : Activity() {
     override fun onDestroy() {
         main.removeCallbacksAndMessages(null)
         io.shutdownNow()
+        previewIo.shutdownNow()
         super.onDestroy()
     }
 
@@ -102,7 +110,7 @@ class WallpaperActivity : Activity() {
         previewRunnable = Runnable {
             if (isFinishing || isDestroyed) return@Runnable
             try {
-                io.execute {
+                previewIo.execute {
                     val bmp = store.load(item, 1280, 720) ?: return@execute
                     main.post {
                         if (token != previewToken || isFinishing || isDestroyed) return@post
