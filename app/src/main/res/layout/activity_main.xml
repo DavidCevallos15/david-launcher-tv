@@ -97,4 +97,39 @@
             android:paddingTop="24dp"
             android:paddingEnd="64dp" />
     </HorizontalScrollView>
+
+    <!-- Bienvenida: aparece una vez al arrancar el TV y se desvanece sola -->
+    <LinearLayout
+        android:id="@+id/greeting"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0"
+        android:background="#99000000"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/greetingSmall"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.2"
+            android:textAllCaps="true"
+            android:textColor="#CCFFFFFF"
+            android:textSize="20sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:fontFamily="sans-serif-light"
+            android:gravity="center"
+            android:shadowColor="#99000000"
+            android:shadowDy="3"
+            android:shadowRadius="16"
+            android:text="@string/welcome"
+            android:textColor="#FFFFFF"
+            android:textSize="60sp" />
+    </LinearLayout>
 </FrameLayout>

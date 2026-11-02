@@ -3,6 +3,21 @@
     <string name="app_name">David Launcher TV</string>
     <string name="brand">DAVID LAUNCHER</string>
     <string name="all_apps">Apps</string>
+    <string name="all_apps_hint">Mantén OK sobre una app para fijarla o quitarla de inicio · la marca verde indica que está en inicio</string>
     <string name="settings">Ajustes</string>
+    <string name="wallpapers">Fondos</string>
+    <string name="wallpapers_hint">Pulsa OK para aplicar el fondo</string>
+    <string name="wallpaper_auto">Automático</string>
+    <string name="wallpaper_auto_desc">Un fondo distinto cada día</string>
+    <string name="wallpaper_kind_preset">Degradado integrado</string>
+    <string name="wallpaper_kind_image">Tu imagen</string>
+    <string name="wallpaper_kind_video">Tu video animado</string>
+    <string name="wallpaper_applied">Fondo aplicado: %1$s</string>
+    <string name="pinned">%1$s fijada en inicio</string>
+    <string name="unpinned">%1$s quitada de inicio</string>
     <string name="cannot_open">No se pudo abrir la app</string>
+    <string name="good_morning">Buenos días</string>
+    <string name="good_afternoon">Buenas tardes</string>
+    <string name="good_night">Buenas noches</string>
+    <string name="welcome">Bienvenido, mi rey David</string>
 </resources>

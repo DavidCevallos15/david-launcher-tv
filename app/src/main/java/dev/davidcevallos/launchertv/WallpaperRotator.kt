@@ -2,7 +2,6 @@ package dev.davidcevallos.launchertv
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.graphics.SurfaceTexture
 import android.media.MediaPlayer
@@ -11,22 +10,17 @@ import android.os.Looper
 import android.view.Surface
 import android.view.TextureView
 import android.widget.ImageView
-import java.io.File
-import java.time.Duration
-import java.time.LocalDate
-import java.time.LocalDateTime
+import java.util.Calendar
 import java.util.concurrent.Executors
 
 /**
- * Rota el fondo una vez al día: imágenes con crossfade entre dos ImageView,
- * videos en loop (mudos) sobre un TextureView que entra y sale con fade.
+ * Pinta el fondo elegido en [WallpaperStore] (o el del día en modo automático):
+ * imágenes y degradados con crossfade entre dos ImageView, videos en loop (mudos)
+ * sobre un TextureView que entra y sale con fade.
  *
- * Los fondos viven en el almacenamiento propio de la app:
- *   /sdcard/Android/data/<applicationId>/files/wallpapers/
- * sin permisos de almacenamiento, y nunca forman parte del APK ni del repo.
- *
- * El video se pausa cuando el launcher no está visible: dentro de Netflix o YouTube
- * no consume decodificador ni CPU.
+ * Se vuelve a evaluar en cada onResume, así el cambio hecho en el selector de fondos
+ * se ve al volver a Home. El video se pausa cuando el launcher no está visible:
+ * dentro de Netflix o YouTube no consume decodificador ni CPU.
  */
 class WallpaperRotator(
     context: Context,
@@ -34,18 +28,18 @@ class WallpaperRotator(
     private val back: ImageView,
     private val video: TextureView,
 ) {
-    private val dir: File? = context.getExternalFilesDir(LauncherConfig.WALLPAPER_DIR)
+    private val store = WallpaperStore(context)
     private val io = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
 
-    private var currentFile: File? = null
+    private var currentId: String? = null
     private var currentBitmap: Bitmap? = null
 
     private var surface: Surface? = null
     private var player: MediaPlayer? = null
     private var prepared = false
     private var visible = false
-    private var pendingVideo: File? = null
+    private var pendingVideo: WallpaperItem? = null
     private var videoW = 0
     private var videoH = 0
 
@@ -64,7 +58,7 @@ class WallpaperRotator(
                 releasePlayer()
                 surface?.release()
                 surface = null
-                currentFile = null // forzar recarga cuando vuelva la superficie
+                currentId = null // forzar recarga cuando vuelva la superficie
                 return true
             }
 
@@ -91,26 +85,24 @@ class WallpaperRotator(
         io.shutdownNow()
     }
 
-    /** Fondo del día: índice = día epoch % cantidad (estable todo el día, sin estado guardado). */
     fun refresh() {
-        val files = dir?.listFiles { f -> f.isFile && (isImage(f) || isVideo(f)) }
-            ?.sortedBy { it.name }.orEmpty()
-        if (files.isEmpty()) return // se queda el gradiente de fallback
+        val item = store.current() ?: return // sin nada que mostrar se queda el gradiente de fallback
+        if (item.id == currentId) return
+        currentId = item.id
 
-        val pick = files[(LocalDate.now().toEpochDay() % files.size).toInt()]
-        if (pick == currentFile) return
-        currentFile = pick
-
-        if (isVideo(pick)) playVideo(pick) else showImage(pick)
+        if (item.kind == WallpaperItem.Kind.VIDEO) playVideo(item) else showImage(item)
     }
 
     // ---------- Imagen ----------
 
-    private fun showImage(file: File) {
+    private fun showImage(item: WallpaperItem) {
         io.execute {
-            val bmp = decodeSampled(file) ?: return@execute
+            val bmp = store.load(
+                item, LauncherConfig.MAX_WALLPAPER_W, LauncherConfig.MAX_WALLPAPER_H,
+                if (item.kind == WallpaperItem.Kind.PRESET) Bitmap.Config.ARGB_8888 else Bitmap.Config.RGB_565,
+            ) ?: return@execute
             main.post {
-                if (currentFile != file) { bmp.recycle(); return@post }
+                if (currentId != item.id) { bmp.recycle(); return@post }
                 if (video.alpha > 0f) {
                     // Venimos de un video: la imagen va debajo y el video se desvanece encima.
                     setImage(bmp)
@@ -126,6 +118,7 @@ class WallpaperRotator(
     private fun crossfadeImage(bmp: Bitmap) {
         val old = currentBitmap
         currentBitmap = bmp
+        back.animate().cancel()
         back.setImageBitmap(bmp)
         back.alpha = 0f
         back.animate().alpha(1f).setDuration(LauncherConfig.CROSSFADE_MS).withEndAction {
@@ -145,9 +138,9 @@ class WallpaperRotator(
 
     // ---------- Video ----------
 
-    private fun playVideo(file: File) {
+    private fun playVideo(item: WallpaperItem) {
         val s = surface
-        if (s == null) { pendingVideo = file; return }
+        if (s == null) { pendingVideo = item; return }
         pendingVideo = null
         releasePlayer()
 
@@ -155,7 +148,7 @@ class WallpaperRotator(
         player = mp
         try {
             mp.setSurface(s)
-            mp.setDataSource(file.absolutePath)
+            mp.setDataSource(item.file!!.absolutePath)
             mp.isLooping = true
             mp.setVolume(0f, 0f)
             mp.setOnPreparedListener {
@@ -209,25 +202,13 @@ class WallpaperRotator(
 
     private fun scheduleMidnight() {
         main.removeCallbacks(midnightTick)
-        val now = LocalDateTime.now()
-        val next = now.toLocalDate().plusDays(1).atStartOfDay()
-        main.postDelayed(midnightTick, Duration.between(now, next).toMillis() + 2_000)
-    }
-
-    private fun decodeSampled(file: File): Bitmap? = runCatching {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(file.absolutePath, bounds)
-        var sample = 1
-        while (bounds.outWidth / (sample * 2) >= LauncherConfig.MAX_WALLPAPER_W &&
-            bounds.outHeight / (sample * 2) >= LauncherConfig.MAX_WALLPAPER_H
-        ) sample *= 2
-        val opts = BitmapFactory.Options().apply {
-            inSampleSize = sample
-            inPreferredConfig = Bitmap.Config.RGB_565 // la mitad de RAM que ARGB_8888; un fondo no necesita alfa
+        val next = Calendar.getInstance().apply {
+            add(Calendar.DAY_OF_YEAR, 1)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
         }
-        BitmapFactory.decodeFile(file.absolutePath, opts)
-    }.getOrNull()
-
-    private fun isImage(f: File) = f.extension.lowercase() in LauncherConfig.IMAGE_EXT
-    private fun isVideo(f: File) = f.extension.lowercase() in LauncherConfig.VIDEO_EXT
+        main.postDelayed(midnightTick, next.timeInMillis - System.currentTimeMillis() + 2_000)
+    }
 }

@@ -18,10 +18,33 @@ data class AppEntry(
 class AppRepository(private val context: Context) {
 
     private val pm: PackageManager = context.packageManager
+    private val prefs = LauncherPrefs(context)
 
-    /** Apps fijadas en el dock, en el orden de [LauncherConfig.dockPackages]. */
-    fun dockApps(): List<AppEntry> =
-        LauncherConfig.dockPackages.mapNotNull { resolvePackage(it) }
+    private fun launchIntent(pkg: String): Intent? =
+        pm.getLeanbackLaunchIntentForPackage(pkg) ?: pm.getLaunchIntentForPackage(pkg)
+
+    /** Paquetes que se ven ahora mismo en el dock (instalados y habilitados), en orden. Barato: no carga íconos. */
+    fun dockPackages(): List<String> {
+        val custom = prefs.dockPackages
+        val source = custom ?: LauncherConfig.defaultDockCandidates
+        val installed = source.filter { launchIntent(it) != null }
+        return if (custom == null) installed.take(LauncherConfig.DEFAULT_DOCK_MAX) else installed
+    }
+
+    /** Apps fijadas en el dock. */
+    fun dockApps(): List<AppEntry> = dockPackages().mapNotNull { resolvePackage(it) }
+
+    /** Fija o quita [pkg] del dock. Devuelve true si quedó fijada. */
+    fun togglePin(pkg: String): Boolean {
+        val current = dockPackages()
+        val pinned = pkg !in current
+        prefs.dockPackages = if (pinned) current + pkg else current - pkg
+        return pinned
+    }
+
+    fun unpin(pkg: String) {
+        prefs.dockPackages = dockPackages() - pkg
+    }
 
     /** Todas las apps lanzables (TV primero, luego las de categoría LAUNCHER normal). */
     fun allApps(): List<AppEntry> {
@@ -40,9 +63,7 @@ class AppRepository(private val context: Context) {
     }
 
     private fun resolvePackage(pkg: String): AppEntry? {
-        val intent = pm.getLeanbackLaunchIntentForPackage(pkg)
-            ?: pm.getLaunchIntentForPackage(pkg)
-            ?: return null
+        val intent = launchIntent(pkg) ?: return null
         val info = pm.resolveActivity(intent, 0) ?: return null
         return fromResolveInfo(info, null, intent)
     }
