@@ -42,6 +42,11 @@ class AppRepository(private val context: Context) {
         return pinned
     }
 
+    /** Guarda el orden del dock tal como lo dejó el usuario al mover tarjetas. */
+    fun setDockOrder(packages: List<String>) {
+        prefs.dockPackages = packages
+    }
+
     fun unpin(pkg: String) {
         prefs.dockPackages = dockPackages() - pkg
     }

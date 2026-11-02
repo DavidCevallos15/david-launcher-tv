@@ -7,6 +7,7 @@ import android.graphics.SurfaceTexture
 import android.media.MediaPlayer
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.Surface
 import android.view.TextureView
 import android.widget.ImageView
@@ -42,6 +43,7 @@ class WallpaperRotator(
     private var pendingVideo: WallpaperItem? = null
     private var videoW = 0
     private var videoH = 0
+    private var videoRetries = 0
 
     private val midnightTick = Runnable { refresh(); scheduleMidnight() }
 
@@ -85,11 +87,26 @@ class WallpaperRotator(
         io.shutdownNow()
     }
 
+    /** Elige el fondo en segundo plano (listar la carpeta es lento en el TV) y lo aplica en el hilo principal. */
     fun refresh() {
-        val item = store.current() ?: return // sin nada que mostrar se queda el gradiente de fallback
-        if (item.id == currentId) return
-        currentId = item.id
+        try {
+            io.execute {
+                val item = store.current() ?: return@execute // sin nada que mostrar se queda el gradiente de fallback
+                main.post { if (visible) apply(item) }
+            }
+        } catch (_: java.util.concurrent.RejectedExecutionException) {
+            // El launcher se cerró entre medias.
+        }
+    }
 
+    private fun apply(item: WallpaperItem) {
+        if (item.id == currentId) {
+            // Mismo fondo: si es un video que se quedó sin reproductor (decodificador ocupado, superficie nueva), revívelo.
+            if (item.kind == WallpaperItem.Kind.VIDEO && player == null && pendingVideo == null) playVideo(item)
+            return
+        }
+        currentId = item.id
+        videoRetries = 0
         if (item.kind == WallpaperItem.Kind.VIDEO) playVideo(item) else showImage(item)
     }
 
@@ -139,6 +156,7 @@ class WallpaperRotator(
     // ---------- Video ----------
 
     private fun playVideo(item: WallpaperItem) {
+        Log.d(TAG, "playVideo ${item.id} surface=${surface != null}")
         val s = surface
         if (s == null) { pendingVideo = item; return }
         pendingVideo = null
@@ -164,15 +182,26 @@ class WallpaperRotator(
                     currentBitmap = null
                 }.start()
             }
-            mp.setOnErrorListener { _, _, _ ->
-                releasePlayer()
-                video.alpha = 0f
+            mp.setOnErrorListener { _, what, extra ->
+                Log.w(TAG, "video error what=$what extra=$extra (${item.id})")
+                videoFailed(item)
                 true
             }
             mp.prepareAsync()
         } catch (e: Exception) {
-            releasePlayer()
-            video.alpha = 0f
+            Log.w(TAG, "video no se pudo abrir (${item.id})", e)
+            videoFailed(item)
+        }
+    }
+
+    /** Otra app (Netflix, Disney+...) puede tener ocupado el decodificador justo al volver a Home: se reintenta. */
+    private fun videoFailed(item: WallpaperItem) {
+        releasePlayer()
+        video.alpha = 0f
+        if (videoRetries++ < 3) {
+            main.postDelayed({
+                if (visible && currentId == item.id && player == null) playVideo(item)
+            }, 1_500L)
         }
     }
 
@@ -210,5 +239,9 @@ class WallpaperRotator(
             set(Calendar.MILLISECOND, 0)
         }
         main.postDelayed(midnightTick, next.timeInMillis - System.currentTimeMillis() + 2_000)
+    }
+
+    private companion object {
+        const val TAG = "WallpaperRotator"
     }
 }

@@ -53,8 +53,23 @@ class WallpaperStore(context: Context) {
         prefs.wallpaperId = id
     }
 
-    /** Archivos del usuario, ordenados por nombre. */
-    fun files(): List<WallpaperItem> =
+    private var listedAt = 0L
+    private var listed: List<WallpaperItem> = emptyList()
+
+    /**
+     * Archivos del usuario, ordenados por nombre. Listar la carpeta en el almacenamiento del TV puede tardar
+     * ~1 s: nunca llamar desde el hilo principal; se recuerda 4 s para que las consultas seguidas no repitan el trabajo.
+     */
+    @Synchronized
+    fun files(): List<WallpaperItem> {
+        val now = System.currentTimeMillis()
+        if (now - listedAt < 4_000L) return listed
+        listed = listFiles()
+        listedAt = now
+        return listed
+    }
+
+    private fun listFiles(): List<WallpaperItem> =
         dir?.listFiles { f -> f.isFile && (isImage(f) || isVideo(f)) }
             ?.sortedBy { it.name }
             ?.map { f ->

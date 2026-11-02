@@ -36,10 +36,19 @@ class WallpaperActivity : Activity() {
         nameView = findViewById(R.id.wpName)
         subtitleView = findViewById(R.id.wpSubtitle)
         store = WallpaperStore(this)
+        findViewById<android.view.View>(R.id.wpScroll).background = Theme.glassDrawable(this)
 
+        // Listar la carpeta de fondos puede tardar ~1 s en el TV: fuera del hilo principal.
+        io.execute {
+            val all = store.all()
+            val autoPick = store.autoPick()
+            main.post { if (!isFinishing && !isDestroyed) populate(all, autoPick) }
+        }
+    }
+
+    private fun populate(all: List<WallpaperItem>, autoPick: WallpaperItem?) {
         val tiles = TileFactory(this)
         val row = findViewById<LinearLayout>(R.id.wpRow)
-        val all = store.all()
         // Si el fondo guardado ya no existe (borraste el archivo), el efectivo es el automático.
         val selected = store.selectedId.takeIf { id -> all.any { it.id == id } } ?: WallpaperStore.AUTO
         val tileW = (resources.configuration.screenWidthDp * 0.17f).coerceIn(160f, 240f)
@@ -48,7 +57,6 @@ class WallpaperActivity : Activity() {
         var focusIndex = 0
         val thumbJobs = ArrayList<Triple<Int, WallpaperItem, TileFactory.Tile>>()
 
-        val autoPick = store.autoPick()
         val entries = buildList {
             add(Entry(WallpaperStore.AUTO, getString(R.string.wallpaper_auto), getString(R.string.wallpaper_auto_desc), autoPick))
             all.forEach { add(Entry(it.id, it.name, kindLabel(it), it)) }

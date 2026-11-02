@@ -25,8 +25,17 @@ import android.widget.TextView
  */
 class TileFactory(private val context: Context) {
 
-    class Tile(val root: View, private val image: ImageView, private val badge: View) {
+    class Tile(
+        val root: View,
+        private val image: ImageView,
+        private val badge: View,
+        private val onMoving: (Boolean) -> Unit,
+    ) {
         fun setImage(d: Drawable?) = image.setImageDrawable(d)
+
+        /** Modo "mover": la tarjeta queda levantada y resaltada aunque cambie de sitio. */
+        fun setMoving(on: Boolean) = onMoving(on)
+
         fun setBadge(on: Boolean) {
             badge.visibility = if (on) View.VISIBLE else View.GONE
         }
@@ -63,6 +72,7 @@ class TileFactory(private val context: Context) {
         val h = (w * 9f / 16f).toInt()
         val radius = dp(14f).toFloat()
         val iconOnly = banner == null && icon != null
+        val accent = Theme.accent(context)
 
         val card = FrameLayout(context).apply {
             background = GradientDrawable().apply {
@@ -100,7 +110,7 @@ class TileFactory(private val context: Context) {
             background = GradientDrawable().apply {
                 cornerRadius = radius
                 setColor(Color.TRANSPARENT)
-                setStroke(dp(3f), Color.WHITE)
+                setStroke(dp(3f), accent)
             }
             alpha = 0f
         }
@@ -142,17 +152,23 @@ class TileFactory(private val context: Context) {
         }
 
         val interp = DecelerateInterpolator(2f)
-        root.setOnFocusChangeListener { _, focused ->
-            val scale = if (focused) 1.1f else 1f
+        var moving = false
+        fun render(focused: Boolean) {
+            val up = focused || moving
+            val scale = if (moving) 1.18f else if (focused) 1.1f else 1f
             card.animate().scaleX(scale).scaleY(scale)
-                .translationZ(if (focused) dp(18f).toFloat() else 0f)
+                .translationZ(if (up) dp(18f).toFloat() else 0f)
                 .setInterpolator(interp).setDuration(180).start()
-            ring.animate().alpha(if (focused) 1f else 0f).setDuration(150).start()
-            caption.animate().alpha(if (focused) 1f else restAlpha).setDuration(180).start()
+            ring.animate().alpha(if (up) 1f else 0f).setDuration(150).start()
+            caption.animate().alpha(if (up) 1f else restAlpha).setDuration(180).start()
             // La escala no cambia el layout: sin esto, la vecina de la derecha se dibuja encima de la enfocada.
-            root.translationZ = if (focused) 1f else 0f
+            root.translationZ = if (up) 1f else 0f
         }
-        return Tile(root, image, check)
+        root.setOnFocusChangeListener { _, focused -> render(focused) }
+        return Tile(root, image, check) { on ->
+            moving = on
+            render(root.hasFocus())
+        }
     }
 
     /** Círculo verde con palomita: "está en inicio" / "fondo activo". */

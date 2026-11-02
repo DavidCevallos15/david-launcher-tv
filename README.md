@@ -1,8 +1,8 @@
 # David Launcher TV
 
-Launcher minimalista para Android TV, inspirado en tvOS: fondo (degradado, imagen o video en loop) con selector integrado, bienvenida al arrancar, reloj, dock de apps que tú eliges y cero recomendaciones ni publicidad.
+Launcher minimalista para Android TV, inspirado en tvOS: fondo (degradado, imagen o video en loop) con selector integrado, widgets en vivo (reloj, fecha, saludo según la hora y clima), dock de apps que tú organizas, colores y fuentes editables, y cero recomendaciones ni publicidad.
 
-- **~70 KB** en release, sin AndroidX ni librerías de terceros (framework puro + Kotlin)
+- **~230 KB** en release (incluye 4 fuentes opcionales), sin AndroidX ni librerías de terceros (framework puro + Kotlin)
 - **Sin root**, sin desbloquear bootloader, 100 % reversible
 - Fondos leídos del almacenamiento propio de la app: no van en el APK ni en el repo
 - Android 5.0+ (API 21): Android TV, Google TV y Fire TV. Probado en TCL BeyondTV2 (Android TV 11)
@@ -41,9 +41,15 @@ Si al presionar Home el TV sigue abriendo el launcher de fábrica:
 
 | Acción | Cómo |
 |---|---|
-| Cambiar fondo | Tarjeta **Fondos** en Home → recorre con ←/→ (se previsualiza a pantalla completa) → **OK** para aplicar |
-| Fondo cambiante | En Fondos, elige **Automático**: uno distinto cada día |
-| Fijar / quitar app del dock | **Apps** → mantén **OK** sobre la app (marca verde = en inicio). También mantén OK sobre una app del dock para quitarla |
+| Ver solo el fondo con los widgets | **▲** en el dock oculta el menú; cualquier botón (o Atrás) lo vuelve a abrir. En Personalizar puedes hacer que se oculte solo (10 s / 30 s / 1 min) |
+| Personalizar | Tarjeta **Editar** (extremo izquierdo del dock) o la tecla **MENÚ**: fuente y tamaño del reloj, fuente de fecha y saludo, formato 12/24 h, qué widgets se ven, ciudad y unidades del clima, color de acento, color del reloj, estilo de las barras, saludo de bienvenida |
+| Mover una app del dock | Mantén **OK** sobre ella (o *Organizar apps del inicio* en Personalizar) → **◀ ▶** la mueven, **OK** la suelta, **▲** la quita del dock |
+| Fijar una app nueva | **Apps** → mantén **OK** sobre la app (marca verde = en inicio) |
+| Cambiar fondo | Tarjeta **Fondos** → recorre con ◀/▶ (vista previa a pantalla completa) → **OK** para aplicar. **Automático** rota uno distinto cada día |
+
+**Saludo:** "Buenos días / Buenas tardes / Buenas noches, David" arriba a la derecha (de 0 a 5 h: "¿Madrugando, eh, David?"). La bienvenida "Bienvenido, mi rey David" dura ~2 s y solo sale al arrancar el TV, al encenderlo tras apagar la pantalla, o pasadas 6 h; no al volver de otras apps.
+
+**Clima:** [Open-Meteo](https://open-meteo.com) (gratis, sin cuenta). Con la ciudad en *Automática* se ubica por tu IP pública (ipwho.is, con geojs.io de respaldo); si prefieres no enviar tu IP, elige una ciudad de la lista. Sin internet se muestra el último clima guardado. Es el único permiso de red que usa la app.
 
 Los degradados vienen integrados; tus imágenes/videos (`push-wallpapers.sh`) aparecen primero en Fondos.
 
@@ -60,6 +66,9 @@ adb uninstall dev.davidcevallos.launchertv
 |---|---|
 | Apps propuestas la primera vez | `LauncherConfig.defaultDockCandidates` (solo aparecen las instaladas) |
 | Degradados integrados | `WallpaperStore.PRESETS` |
+| Fuentes, colores, estilos de barra | `Theme` (cada opción nueva aparece sola en Personalizar) |
+| Ciudades del clima | `WeatherRepository.CITIES` |
+| Tu nombre en el saludo | `LauncherConfig.USER_NAME` |
 | Duración del crossfade | `LauncherConfig.CROSSFADE_MS` |
 | Orden de rotación automática | Nombre de archivo (`001.jpg`, `002.jpg`…), un fondo por día; sin archivos rota los degradados |
 | Paquetes a deshabilitar | `scripts/debloat-packages.txt` |
@@ -70,7 +79,11 @@ Las apps que instales desde Play Store aparecen en **Apps** sin tocar código.
 
 | Archivo | Responsabilidad |
 |---|---|
-| `MainActivity` | Home: reloj, dock, foco por D-pad |
+| `MainActivity` | Home: dock, modo mover, ocultar menú, bienvenida |
+| `HeaderController` | Widgets de arriba (reloj, fecha, saludo, clima); lo comparten Home y Personalizar |
+| `CustomizeActivity` | Personalizar, con vista previa en vivo |
+| `WeatherRepository` / `WeatherIconView` | Clima (Open-Meteo) e ícono dibujado en código |
+| `Theme` | Catálogo de fuentes, colores y estilos |
 | `WallpaperStore` / `LauncherPrefs` | Catálogo de fondos (archivos + degradados), selección y apps fijadas |
 | `WallpaperActivity` | Selector de fondos con vista previa a pantalla completa |
 | `WallpaperRotator` | Pinta el fondo elegido o el del día (`epochDay % n`). Imágenes a 1080p en RGB_565 con crossfade; videos mudos en loop sobre `TextureView` (center-crop), pausados cuando abres otra app |
@@ -80,4 +93,4 @@ Las apps que instales desde Play Store aparecen en **Apps** sin tocar código.
 
 ## Licencia
 
-MIT
+MIT. Las fuentes incluidas (Poppins, Bebas Neue, Orbitron, Righteous) son de terceros bajo SIL Open Font License 1.1; sus licencias están en `licenses/fonts/`.

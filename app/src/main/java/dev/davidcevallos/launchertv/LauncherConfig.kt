@@ -6,6 +6,9 @@ package dev.davidcevallos.launchertv
  */
 object LauncherConfig {
 
+    /** Nombre con el que te saluda el launcher. */
+    const val USER_NAME = "David"
+
     /**
      * Apps que se proponen en el dock la primera vez, en este orden. Solo aparecen
      * las que estén instaladas, así el launcher funciona igual en Android TV,

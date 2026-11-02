@@ -30,53 +30,17 @@
 
     <!-- Scrim para legibilidad del reloj y del dock -->
     <View
+        android:id="@+id/scrim"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/scrim" />
 
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="64dp"
-        android:layout_marginTop="40dp"
-        android:orientation="vertical">
+    <!-- Widgets: reloj, fecha, saludo y clima. Siguen visibles cuando se oculta el menú. -->
+    <include layout="@layout/widgets_header" />
 
-        <TextView
-            android:id="@+id/clock"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:fontFamily="sans-serif-light"
-            android:shadowColor="#99000000"
-            android:shadowDy="2"
-            android:shadowRadius="10"
-            android:textColor="#FFFFFF"
-            android:textSize="56sp" />
-
-        <TextView
-            android:id="@+id/date"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:fontFamily="sans-serif"
-            android:shadowColor="#99000000"
-            android:shadowDy="1"
-            android:shadowRadius="8"
-            android:textColor="#D9FFFFFF"
-            android:textSize="18sp" />
-    </LinearLayout>
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="48dp"
-        android:layout_marginEnd="64dp"
-        android:fontFamily="sans-serif-medium"
-        android:letterSpacing="0.15"
-        android:text="@string/brand"
-        android:textColor="#B3FFFFFF"
-        android:textSize="14sp" />
-
+    <!-- Menú / dock -->
     <HorizontalScrollView
+        android:id="@+id/dockScroll"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
@@ -86,8 +50,8 @@
         android:background="@drawable/bg_glass"
         android:clipToPadding="false"
         android:fadingEdgeLength="48dp"
-        android:requiresFadingEdge="horizontal"
         android:overScrollMode="never"
+        android:requiresFadingEdge="horizontal"
         android:scrollbars="none">
 
         <LinearLayout
@@ -103,7 +67,37 @@
             android:paddingBottom="16dp" />
     </HorizontalScrollView>
 
-    <!-- Bienvenida: aparece una vez al arrancar el TV y se desvanece sola -->
+    <!-- Ayuda del modo "mover" -->
+    <TextView
+        android:id="@+id/moveHint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="236dp"
+        android:paddingStart="26dp"
+        android:paddingTop="12dp"
+        android:paddingEnd="26dp"
+        android:paddingBottom="12dp"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:visibility="gone" />
+
+    <!-- Aviso al ocultar el menú -->
+    <TextView
+        android:id="@+id/cleanHint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="34dp"
+        android:alpha="0"
+        android:shadowColor="#99000000"
+        android:shadowDy="1"
+        android:shadowRadius="8"
+        android:text="@string/clean_hint"
+        android:textColor="#CCFFFFFF"
+        android:textSize="16sp" />
+
+    <!-- Bienvenida: breve, al arrancar el TV o el launcher -->
     <LinearLayout
         android:id="@+id/greeting"
         android:layout_width="match_parent"
@@ -115,19 +109,9 @@
         android:visibility="gone">
 
         <TextView
-            android:id="@+id/greetingSmall"
+            android:id="@+id/welcomeText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:fontFamily="sans-serif-medium"
-            android:letterSpacing="0.2"
-            android:textAllCaps="true"
-            android:textColor="#CCFFFFFF"
-            android:textSize="20sp" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
             android:fontFamily="sans-serif-light"
             android:gravity="center"
             android:shadowColor="#99000000"
@@ -136,5 +120,12 @@
             android:text="@string/welcome"
             android:textColor="#FFFFFF"
             android:textSize="60sp" />
+
+        <View
+            android:id="@+id/welcomeLine"
+            android:layout_width="120dp"
+            android:layout_height="3dp"
+            android:layout_marginTop="18dp"
+            android:background="#FFFFFF" />
     </LinearLayout>
 </FrameLayout>
