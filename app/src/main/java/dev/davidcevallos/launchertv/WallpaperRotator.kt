@@ -2,38 +2,39 @@ package dev.davidcevallos.launchertv
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Matrix
-import android.graphics.SurfaceTexture
 import android.media.MediaPlayer
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.Surface
-import android.view.TextureView
+import android.view.SurfaceHolder
+import android.view.SurfaceView
+import android.view.View
 import android.widget.ImageView
 import java.util.Calendar
 import java.util.concurrent.Executors
 
 /**
- * Pinta el fondo elegido en [WallpaperStore] (o el del día en modo automático):
- * imágenes y degradados con crossfade entre dos ImageView, videos en loop (mudos)
- * sobre un TextureView que entra y sale con fade.
+ * Pinta el fondo elegido en [WallpaperStore] (o el del día en modo automático): imágenes y degradados con
+ * crossfade entre dos ImageView, y videos en loop (mudos) sobre un [SurfaceView].
  *
- * Se vuelve a evaluar en cada onResume, así el cambio hecho en el selector de fondos
- * se ve al volver a Home. El video se pausa cuando el launcher no está visible:
- * dentro de Netflix o YouTube no consume decodificador ni CPU.
+ * El video va en un SurfaceView, no en un TextureView: el decodificador de hardware escribe directo a una capa del
+ * compositor y la GPU del TV no tiene que copiar ni mezclar cada fotograma (con TextureView el launcher gastaba ~60 %
+ * de CPU y dibujaba a ~8 fps). El SurfaceView solo existe mientras el fondo es un video: con una imagen está GONE y
+ * no gasta ni decodificador ni memoria. Se vuelve a evaluar en cada onResume; el video se pausa al salir de Home.
  */
 class WallpaperRotator(
     context: Context,
     private val front: ImageView,
     private val back: ImageView,
-    private val video: TextureView,
+    private val video: SurfaceView,
 ) {
     private val store = WallpaperStore(context)
     private val io = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
 
     private var currentId: String? = null
+    private var currentIsVideo = false
     private var currentBitmap: Bitmap? = null
 
     private var surface: Surface? = null
@@ -41,31 +42,26 @@ class WallpaperRotator(
     private var prepared = false
     private var visible = false
     private var pendingVideo: WallpaperItem? = null
-    private var videoW = 0
-    private var videoH = 0
     private var videoRetries = 0
 
     private val midnightTick = Runnable { refresh(); scheduleMidnight() }
 
     init {
-        video.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-            override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
-                surface = Surface(st)
+        video.holder.addCallback(object : SurfaceHolder.Callback {
+            override fun surfaceCreated(holder: SurfaceHolder) {
+                surface = holder.surface
                 pendingVideo?.let { playVideo(it) }
             }
 
-            override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) = applyCenterCrop()
+            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
 
-            override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
+            override fun surfaceDestroyed(holder: SurfaceHolder) {
                 releasePlayer()
-                surface?.release()
                 surface = null
-                currentId = null // forzar recarga cuando vuelva la superficie
-                return true
+                // Al volver a Home la superficie es nueva: hay que reiniciar el video (con una imagen no pasa nada).
+                if (currentIsVideo) currentId = null
             }
-
-            override fun onSurfaceTextureUpdated(st: SurfaceTexture) = Unit
-        }
+        })
     }
 
     fun start() {
@@ -101,34 +97,37 @@ class WallpaperRotator(
 
     private fun apply(item: WallpaperItem) {
         if (item.id == currentId) {
-            // Mismo fondo: si es un video que se quedó sin reproductor (decodificador ocupado, superficie nueva), revívelo.
             if (item.kind == WallpaperItem.Kind.VIDEO && player == null && pendingVideo == null) playVideo(item)
             return
         }
         currentId = item.id
         videoRetries = 0
-        if (item.kind == WallpaperItem.Kind.VIDEO) playVideo(item) else showImage(item)
+        if (item.kind == WallpaperItem.Kind.VIDEO) {
+            currentIsVideo = true
+            playVideo(item)
+        } else {
+            currentIsVideo = false
+            releasePlayer()
+            video.visibility = View.GONE // libera la superficie y el decodificador
+            showImage(item)
+        }
     }
 
     // ---------- Imagen ----------
 
     private fun showImage(item: WallpaperItem) {
-        io.execute {
-            val bmp = store.load(
-                item, LauncherConfig.MAX_WALLPAPER_W, LauncherConfig.MAX_WALLPAPER_H,
-                if (item.kind == WallpaperItem.Kind.PRESET) Bitmap.Config.ARGB_8888 else Bitmap.Config.RGB_565,
-            ) ?: return@execute
-            main.post {
-                if (currentId != item.id) { bmp.recycle(); return@post }
-                if (video.alpha > 0f) {
-                    // Venimos de un video: la imagen va debajo y el video se desvanece encima.
-                    setImage(bmp)
-                    video.animate().alpha(0f).setDuration(LauncherConfig.CROSSFADE_MS)
-                        .withEndAction { releasePlayer() }.start()
-                } else {
+        try {
+            io.execute {
+                val bmp = store.load(
+                    item, LauncherConfig.MAX_WALLPAPER_W, LauncherConfig.MAX_WALLPAPER_H,
+                    if (item.kind == WallpaperItem.Kind.PRESET) Bitmap.Config.ARGB_8888 else Bitmap.Config.RGB_565,
+                ) ?: return@execute
+                main.post {
+                    if (currentId != item.id) { bmp.recycle(); return@post }
                     crossfadeImage(bmp)
                 }
             }
+        } catch (_: java.util.concurrent.RejectedExecutionException) {
         }
     }
 
@@ -146,19 +145,20 @@ class WallpaperRotator(
         }.start()
     }
 
-    private fun setImage(bmp: Bitmap) {
-        val old = currentBitmap
-        currentBitmap = bmp
-        front.setImageBitmap(bmp)
-        if (old != null && old !== bmp && !old.isRecycled) old.recycle()
-    }
-
     // ---------- Video ----------
 
     private fun playVideo(item: WallpaperItem) {
-        Log.d(TAG, "playVideo ${item.id} surface=${surface != null}")
+        // Con un video encima, la imagen de abajo solo gasta RAM.
+        front.setImageDrawable(null)
+        currentBitmap?.takeIf { !it.isRecycled }?.recycle()
+        currentBitmap = null
+
         val s = surface
-        if (s == null) { pendingVideo = item; return }
+        if (s == null) {
+            pendingVideo = item
+            video.visibility = View.VISIBLE // al hacerse visible el sistema crea la superficie -> surfaceCreated
+            return
+        }
         pendingVideo = null
         releasePlayer()
 
@@ -167,20 +167,12 @@ class WallpaperRotator(
         try {
             mp.setSurface(s)
             mp.setDataSource(item.file!!.absolutePath)
+            mp.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING) // center-crop sin matrices
             mp.isLooping = true
             mp.setVolume(0f, 0f)
             mp.setOnPreparedListener {
                 prepared = true
-                videoW = it.videoWidth
-                videoH = it.videoHeight
-                applyCenterCrop()
                 if (visible) it.start()
-                video.animate().alpha(1f).setDuration(LauncherConfig.CROSSFADE_MS).withEndAction {
-                    // Con el video cubriendo todo, la imagen de abajo solo gasta RAM.
-                    front.setImageDrawable(null)
-                    currentBitmap?.takeIf { b -> !b.isRecycled }?.recycle()
-                    currentBitmap = null
-                }.start()
             }
             mp.setOnErrorListener { _, what, extra ->
                 Log.w(TAG, "video error what=$what extra=$extra (${item.id})")
@@ -194,10 +186,9 @@ class WallpaperRotator(
         }
     }
 
-    /** Otra app (Netflix, Disney+...) puede tener ocupado el decodificador justo al volver a Home: se reintenta. */
+    /** Otra app puede tener ocupado el decodificador justo al volver a Home: se reintenta unas veces. */
     private fun videoFailed(item: WallpaperItem) {
         releasePlayer()
-        video.alpha = 0f
         if (videoRetries++ < 3) {
             main.postDelayed({
                 if (visible && currentId == item.id && player == null) playVideo(item)
@@ -214,17 +205,6 @@ class WallpaperRotator(
             release()
         }
         player = null
-    }
-
-    /** TextureView estira el video al tamaño de la vista; esto lo convierte en center-crop. */
-    private fun applyCenterCrop() {
-        val vw = video.width.toFloat()
-        val vh = video.height.toFloat()
-        if (vw == 0f || vh == 0f || videoW == 0 || videoH == 0) return
-        val scale = maxOf(vw / videoW, vh / videoH)
-        val m = Matrix()
-        m.setScale(videoW * scale / vw, videoH * scale / vh, vw / 2f, vh / 2f)
-        video.setTransform(m)
     }
 
     // ---------- Utilidades ----------

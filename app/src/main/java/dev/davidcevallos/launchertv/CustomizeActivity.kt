@@ -107,23 +107,11 @@ class CustomizeActivity : BaseActivity() {
         refreshAccess()
         playerRow.onStep = { openNotificationAccess() }
         list.addView(playerRow.view)
-        val usageRow = SettingRow(this, "Acceso para ver las apps abiertas", arrows = false)
-        val usageOk = OpenAppsRepository(this, AppRepository(this)).hasUsageAccess()
-        usageRow.value.text = if (usageOk) "Activo ✓" else "Falta · OK para activarlo"
-        usageRow.value.setTextColor(if (usageOk) Theme.accent(this) else 0xFFFBBF24.toInt())
-        usageRow.onStep = {
-            try {
-                startActivity(android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS))
-            } catch (_: Exception) {
-                android.widget.Toast.makeText(this, R.string.usage_access_manual, android.widget.Toast.LENGTH_LONG).show()
-            }
-        }
-        list.addView(usageRow.view)
 
         section("COLORES")
         choice("Color de acento", Theme.COLORS, { prefs.accent }, { prefs.accent = it }, colors = true)
         choice("Color del reloj y la fecha", Theme.COLORS, { prefs.clockColor }, { prefs.clockColor = it }, colors = true)
-        choice("Estilo de las barras", Theme.GLASS, { prefs.glass }, { prefs.glass = it })
+        choice("Estilo de las tarjetas de widgets", Theme.GLASS, { prefs.glass }, { prefs.glass = it })
 
         section("TAMAÑOS")
         choice(

@@ -37,7 +37,7 @@ class HeaderController(
     private val prefs = LauncherPrefs(context)
     private val weatherRepo = WeatherRepository(context)
     private val main = Handler(Looper.getMainLooper())
-    private val io = Executors.newSingleThreadExecutor()
+    private val io by lazy { Executors.newSingleThreadExecutor() }
     private val locale = Locale("es", "EC")
 
     private val clock = root.findViewById<TextView>(R.id.clock)
@@ -92,7 +92,7 @@ class HeaderController(
 
     fun release() {
         stop()
-        io.shutdownNow()
+        if (fetchWeather) io.shutdownNow()
     }
 
     /** Vuelve a leer las preferencias (fuentes, tamaños, colores, qué widgets se ven) y repinta. */

@@ -1,9 +1,17 @@
 package dev.davidcevallos.launchertv
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapShader
 import android.graphics.Canvas
+import android.graphics.ColorFilter
+import android.graphics.Matrix
+import android.graphics.PixelFormat
+import android.graphics.Rect
+import android.graphics.RectF
+import android.graphics.Shader
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.Color
-import android.graphics.Outline
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.drawable.Drawable
@@ -11,7 +19,6 @@ import android.graphics.drawable.GradientDrawable
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
-import android.view.ViewOutlineProvider
 import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -30,6 +37,7 @@ class TileFactory(private val context: Context) {
         private val image: ImageView,
         private val badge: View,
         private val liveDot: View,
+        private val radiusPx: Float,
         private val onMoving: (Boolean) -> Unit,
     ) {
         /** Punto de color en la esquina: la app está en uso en segundo plano (suena música, etc.). */
@@ -37,7 +45,9 @@ class TileFactory(private val context: Context) {
             liveDot.visibility = if (on) View.VISIBLE else View.GONE
         }
 
-        fun setImage(d: Drawable?) = image.setImageDrawable(d)
+        fun setImage(d: Drawable?) {
+            image.setImageDrawable(if (d is BitmapDrawable) RoundedCoverDrawable(d.bitmap, radiusPx) else d)
+        }
 
         /** Modo "mover": la tarjeta queda levantada y resaltada aunque cambie de sitio. */
         fun setMoving(on: Boolean) = onMoving(on)
@@ -62,6 +72,63 @@ class TileFactory(private val context: Context) {
     fun actionTile(label: String, icon: Drawable?, widthDp: Float, onClick: () -> Unit): Tile =
         build(label, null, icon, widthDp, false, false, onClick, null)
 
+    /**
+     * Botón redondo con ícono y nombre debajo: para las acciones del sistema (Apps, Fondos, Ajustes).
+     * Mucho más barato de dibujar que una tarjeta 16:9 y ocupa una fracción del alto.
+     */
+    fun roundButton(label: String, icon: Drawable?, sizeDp: Float, onClick: () -> Unit): Tile {
+        val d = dp(sizeDp)
+        val accent = Theme.accent(context)
+        val disc = FrameLayout(context).apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.argb(56, 255, 255, 255))
+            }
+        }
+        val image = ImageView(context).apply {
+            setImageDrawable(icon)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+        }
+        val s = (d * 0.5f).toInt()
+        disc.addView(image, FrameLayout.LayoutParams(s, s, Gravity.CENTER))
+        val ring = View(context).apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.TRANSPARENT)
+                setStroke(dp(2.5f), accent)
+            }
+            alpha = 0f
+        }
+        disc.addView(ring, FrameLayout.LayoutParams(-1, -1))
+        val caption = TextView(context).apply {
+            text = label
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            alpha = 0.7f
+            gravity = Gravity.CENTER
+            maxLines = 1
+        }
+        val root = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            isFocusable = true
+            isFocusableInTouchMode = true
+            contentDescription = label
+            addView(disc, LinearLayout.LayoutParams(d, d))
+            addView(caption, LinearLayout.LayoutParams(d + dp(44f), LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8f) })
+            setOnClickListener { onClick() }
+        }
+        root.setOnFocusChangeListener { _, focused ->
+            disc.animate().scaleX(if (focused) 1.14f else 1f).scaleY(if (focused) 1.14f else 1f)
+                .setInterpolator(DecelerateInterpolator(2f)).setDuration(160).start()
+            ring.animate().alpha(if (focused) 1f else 0f).setDuration(140).start()
+            caption.animate().alpha(if (focused) 1f else 0.7f).setDuration(160).start()
+            root.translationZ = if (focused) 1f else 0f
+        }
+        val none = View(context).apply { visibility = View.GONE }
+        return Tile(root, image, none, none, 0f) { }
+    }
+
     /** Tarjeta sin imagen todavía (miniaturas que se cargan en segundo plano): usar [Tile.setImage]. */
     fun mediaTile(label: String, widthDp: Float, badge: Boolean, onClick: () -> Unit): Tile =
         build(label, null, null, widthDp, badge, false, onClick, null)
@@ -78,7 +145,7 @@ class TileFactory(private val context: Context) {
     ): Tile {
         val w = dp(widthDp)
         val h = (w * 9f / 16f).toInt()
-        val radius = dp(14f).toFloat()
+        val radius = dp(16f).toFloat()
         val iconOnly = banner == null && icon != null
         val accent = Theme.accent(context)
 
@@ -87,18 +154,13 @@ class TileFactory(private val context: Context) {
                 cornerRadius = radius
                 setColor(Color.argb(if (iconOnly) 70 else 40, 255, 255, 255))
             }
-            outlineProvider = object : ViewOutlineProvider() {
-                override fun getOutline(view: View, outline: Outline) =
-                    outline.setRoundRect(0, 0, view.width, view.height, radius)
-            }
-            clipToOutline = true
         }
 
         val image = ImageView(context)
         when {
             banner != null -> {
-                image.setImageDrawable(banner)
-                image.scaleType = ImageView.ScaleType.CENTER_CROP
+                image.setImageDrawable(RoundedCoverDrawable(toBitmap(banner, w, h), radius))
+                image.scaleType = ImageView.ScaleType.FIT_XY
                 card.addView(image, FrameLayout.LayoutParams(w, h))
             }
             icon != null -> {
@@ -108,7 +170,7 @@ class TileFactory(private val context: Context) {
                 card.addView(image, FrameLayout.LayoutParams(s, s, Gravity.CENTER))
             }
             else -> {
-                image.scaleType = ImageView.ScaleType.CENTER_CROP
+                image.scaleType = ImageView.ScaleType.FIT_XY
                 card.addView(image, FrameLayout.LayoutParams(w, h))
             }
         }
@@ -118,7 +180,7 @@ class TileFactory(private val context: Context) {
             background = GradientDrawable().apply {
                 cornerRadius = radius
                 setColor(Color.TRANSPARENT)
-                setStroke(dp(3f), accent)
+                setStroke(dp(2.5f), accent)
             }
             alpha = 0f
         }
@@ -144,7 +206,6 @@ class TileFactory(private val context: Context) {
             textSize = 16f
             alpha = restAlpha
             gravity = Gravity.CENTER
-            setShadowLayer(8f, 0f, 2f, Color.argb(160, 0, 0, 0))
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
@@ -169,9 +230,8 @@ class TileFactory(private val context: Context) {
         var moving = false
         fun render(focused: Boolean) {
             val up = focused || moving
-            val scale = if (moving) 1.18f else if (focused) 1.1f else 1f
+            val scale = if (moving) 1.16f else if (focused) 1.08f else 1f
             card.animate().scaleX(scale).scaleY(scale)
-                .translationZ(if (up) dp(18f).toFloat() else 0f)
                 .setInterpolator(interp).setDuration(180).start()
             ring.animate().alpha(if (up) 1f else 0f).setDuration(150).start()
             caption.animate().alpha(if (up) 1f else restAlpha).setDuration(180).start()
@@ -179,7 +239,7 @@ class TileFactory(private val context: Context) {
             root.translationZ = if (up) 1f else 0f
         }
         root.setOnFocusChangeListener { _, focused -> render(focused) }
-        return Tile(root, image, check, liveDot) { on ->
+        return Tile(root, image, check, liveDot, radius) { on ->
             moving = on
             render(root.hasFocus())
         }
@@ -209,6 +269,15 @@ class TileFactory(private val context: Context) {
         }
     }
 
+    /** Un banner de PackageManager puede ser vector, capas, etc.: se rasteriza una vez al tamaño de la tarjeta. */
+    private fun toBitmap(d: Drawable, w: Int, h: Int): Bitmap {
+        if (d is BitmapDrawable && d.bitmap.width > 0) return d.bitmap
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        d.setBounds(0, 0, w, h)
+        d.draw(Canvas(bmp))
+        return bmp
+    }
+
     /** Punto de "en uso": círculo del color de acento con borde blanco para que se vea sobre cualquier banner. */
     private class LiveDot(context: Context, private val color: Int) : View(context) {
         private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = this@LiveDot.color }
@@ -224,4 +293,35 @@ class TileFactory(private val context: Context) {
             canvas.drawCircle(r, r, r - 2f, ring)
         }
     }
+}
+
+/**
+ * Imagen con esquinas redondeadas dibujada con un BitmapShader (cubre el área, recortando el sobrante).
+ * Evita clipToOutline, que en la GPU de este TV es muy caro cuando la tarjeta se escala al enfocarse.
+ */
+internal class RoundedCoverDrawable(private val bmp: Bitmap, private val radius: Float) : Drawable() {
+    private val shader = BitmapShader(bmp, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.shader = this@RoundedCoverDrawable.shader }
+    private val matrix = Matrix()
+    private val rect = RectF()
+
+    override fun onBoundsChange(b: Rect) {
+        val s = maxOf(b.width() / bmp.width.toFloat(), b.height() / bmp.height.toFloat())
+        matrix.setScale(s, s)
+        matrix.postTranslate(b.left + (b.width() - bmp.width * s) / 2f, b.top + (b.height() - bmp.height * s) / 2f)
+        shader.setLocalMatrix(matrix)
+    }
+
+    override fun draw(canvas: Canvas) {
+        rect.set(bounds)
+        canvas.drawRoundRect(rect, radius, radius, paint)
+    }
+
+    // -1: sin tamaño propio, así el ImageView la estira al tamaño de la tarjeta.
+    override fun getIntrinsicWidth() = -1
+    override fun getIntrinsicHeight() = -1
+    override fun setAlpha(alpha: Int) { paint.alpha = alpha }
+    override fun setColorFilter(cf: ColorFilter?) { paint.colorFilter = cf }
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun getOpacity() = PixelFormat.TRANSLUCENT
 }

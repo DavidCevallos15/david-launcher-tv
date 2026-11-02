@@ -2,7 +2,7 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/bg_fallback">
+    android:background="@drawable/bg_solid">
 
     <!-- Fondo: dos capas para el crossfade -->
     <ImageView
@@ -20,13 +20,13 @@
         android:importantForAccessibility="no"
         android:scaleType="centerCrop" />
 
-    <!-- Fondo de video (loop, mudo); entra y sale con fade -->
-    <TextureView
+    <!-- Fondo de video (loop, mudo): SurfaceView, solo existe mientras el fondo es un video -->
+    <SurfaceView
         android:id="@+id/wallVideo"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:alpha="0"
-        android:importantForAccessibility="no" />
+        android:importantForAccessibility="no"
+        android:visibility="gone" />
 
     <!-- Scrim para legibilidad del reloj y del dock -->
     <View
@@ -47,14 +47,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:layout_marginStart="32dp"
-        android:layout_marginEnd="32dp"
-        android:layout_marginBottom="28dp"
-        android:background="@drawable/bg_glass"
+        android:layout_marginBottom="20dp"
         android:clipToPadding="false"
-        android:fadingEdgeLength="36dp"
         android:overScrollMode="never"
-        android:requiresFadingEdge="vertical"
         android:scrollbars="none">
 
         <LinearLayout
@@ -91,9 +86,6 @@
         android:layout_gravity="bottom|center_horizontal"
         android:layout_marginBottom="34dp"
         android:alpha="0"
-        android:shadowColor="#99000000"
-        android:shadowDy="1"
-        android:shadowRadius="8"
         android:text="@string/clean_hint"
         android:textColor="#CCFFFFFF"
         android:textSize="16sp" />
@@ -115,9 +107,6 @@
             android:layout_height="wrap_content"
             android:fontFamily="sans-serif-light"
             android:gravity="center"
-            android:shadowColor="#99000000"
-            android:shadowDy="3"
-            android:shadowRadius="16"
             android:text="@string/welcome"
             android:textColor="#FFFFFF"
             android:textSize="60sp" />

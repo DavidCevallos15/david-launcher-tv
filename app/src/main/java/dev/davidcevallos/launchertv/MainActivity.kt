@@ -13,7 +13,7 @@ import android.os.SystemClock
 import android.provider.Settings
 import android.view.Gravity
 import android.view.KeyEvent
-import android.view.TextureView
+import android.view.SurfaceView
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
@@ -22,7 +22,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import java.util.concurrent.Executors
 
 /**
  * Home. Arriba los widgets (reloj, fecha, saludo, clima, reproductor) y abajo el menú por secciones.
@@ -50,16 +49,14 @@ class MainActivity : BaseActivity() {
     private lateinit var wallpapers: WallpaperRotator
     private lateinit var tiles: TileFactory
     private lateinit var apps: AppRepository
-    private lateinit var openApps: OpenAppsRepository
     private lateinit var prefs: LauncherPrefs
 
     private val main = Handler(Looper.getMainLooper())
-    private val io = Executors.newSingleThreadExecutor()
     private val tileByPkg = HashMap<String, TileFactory.Tile>()
     private val sectionRows = ArrayList<LinearLayout>() // una por sección del usuario, en orden
     private var editTile: TileFactory.Tile? = null
     private var lastFocusKey: String? = null
-    private var running: Map<String, Boolean> = emptyMap()
+    private var dockSignature = ""
 
     private var greetingShowing = false
     private var menuHidden = false
@@ -85,6 +82,7 @@ class MainActivity : BaseActivity() {
         setContentView(R.layout.activity_main)
         dock = findViewById(R.id.dock)
         dockScroll = findViewById(R.id.dockScroll)
+        dockScroll.isVerticalFadingEdgeEnabled = false
         scrim = findViewById(R.id.scrim)
         moveHint = findViewById(R.id.moveHint)
         cleanHint = findViewById(R.id.cleanHint)
@@ -95,7 +93,6 @@ class MainActivity : BaseActivity() {
         prefs = LauncherPrefs(this)
         tiles = TileFactory(this)
         apps = AppRepository(this)
-        openApps = OpenAppsRepository(this, apps)
 
         header = HeaderController(this, headerView)
         showcase = HeaderController(this, showcaseView, scale = 1.8f, details = false, fetchWeather = false)
@@ -112,7 +109,7 @@ class MainActivity : BaseActivity() {
             this,
             findViewById<ImageView>(R.id.wallFront),
             findViewById<ImageView>(R.id.wallBack),
-            findViewById<TextureView>(R.id.wallVideo),
+            findViewById<SurfaceView>(R.id.wallVideo),
         )
         registerReceiver(screenOff, IntentFilter(Intent.ACTION_SCREEN_OFF))
     }
@@ -123,11 +120,18 @@ class MainActivity : BaseActivity() {
             recreate()
             return
         }
-        dockScroll.background = Theme.glassDrawable(this)
         moveHint.background = Theme.glassDrawable(this, 24f)
         welcomeLine.setBackgroundColor(Theme.accent(this))
         showMenu(animate = false)
-        buildDock() // barato: pocas tarjetas; así reflejas instalaciones/desinstalaciones sin listeners
+        // Reconstruir el menú carga íconos de cada app (lento en este TV): solo si algo cambió desde la última vez.
+        val sig = listOf(prefs.sectionsJson, prefs.tileScale, prefs.accent, prefs.uiZoom, apps.pinnedPackages().size).joinToString("|")
+        if (sig != dockSignature || dock.childCount == 0) {
+            dockSignature = sig
+            buildDock()
+        } else {
+            moveView = null
+            restoreFocus()
+        }
         header.start()
         showcase.start()
         wallpapers.start()
@@ -165,7 +169,6 @@ class MainActivity : BaseActivity() {
         header.release()
         showcase.release()
         wallpapers.release()
-        io.shutdownNow()
         super.onDestroy()
     }
 
@@ -332,15 +335,6 @@ class MainActivity : BaseActivity() {
         moveHint.visibility = View.GONE
         val w = tileWidthDp()
         val gap = dpi(24f)
-        // Qué apps están en uso en segundo plano: unas decenas de consultas al sistema, fuera del hilo principal.
-        try {
-            io.execute {
-                val r = runCatching { openApps.runningPackages() }.getOrDefault(emptyMap())
-                main.post { running = r; refreshLive(MediaHub.track) }
-            }
-        } catch (_: java.util.concurrent.RejectedExecutionException) {
-        }
-
         val sections = apps.sections()
         sections.forEachIndexed { i, section ->
             val row = newRow()
@@ -378,12 +372,11 @@ class MainActivity : BaseActivity() {
 
         val system = newRow()
         fun sys(key: String, label: Int, icon: Int, action: () -> Unit) {
-            val t = tiles.actionTile(getString(label), getDrawable(icon), w, action)
+            val t = tiles.roundButton(getString(label), getDrawable(icon), 68f, action)
             t.root.tag = "sys:$key"
-            addTile(system, t.root, gap)
+            addTile(system, t.root, dpi(28f))
         }
         sys("apps", R.string.all_apps, R.drawable.ic_grid) { startActivity(Intent(this, AllAppsActivity::class.java)) }
-        sys("open", R.string.open_apps, R.drawable.ic_layers) { startActivity(Intent(this, OpenAppsActivity::class.java)) }
         sys("walls", R.string.wallpapers, R.drawable.ic_wallpaper) { startActivity(Intent(this, WallpaperActivity::class.java)) }
         sys("settings", R.string.settings, R.drawable.ic_settings) {
             launch(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -400,7 +393,7 @@ class MainActivity : BaseActivity() {
         orientation = LinearLayout.HORIZONTAL
         clipChildren = false
         clipToPadding = false
-        setPadding(dpi(32f), dpi(8f), dpi(32f), dpi(6f))
+        setPadding(dpi(64f), dpi(8f), dpi(64f), dpi(6f))
     }
 
     private fun placeholder() = TextView(this).apply {
@@ -421,13 +414,12 @@ class MainActivity : BaseActivity() {
             letterSpacing = 0.08f
             setTextColor(0xCCFFFFFF.toInt())
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dpi(36f); topMargin = dpi(2f) })
+        }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dpi(68f); topMargin = dpi(2f) })
         val scroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             overScrollMode = View.OVER_SCROLL_NEVER
             clipToPadding = false
-            isHorizontalFadingEdgeEnabled = true
-            setFadingEdgeLength(dpi(40f))
+            isHorizontalFadingEdgeEnabled = false // el desvanecido de bordes obliga a un saveLayer por fila: muy caro en este SoC
             addView(row)
         }
         block.addView(scroll, LinearLayout.LayoutParams(-1, -2))
@@ -442,9 +434,11 @@ class MainActivity : BaseActivity() {
             return
         }
         val peek = if (dock.childCount > 1) dpi(46f) else 0
-        dockScroll.layoutParams = dockScroll.layoutParams.apply {
-            height = first.height + dock.paddingTop + dock.paddingBottom + peek
-        }
+        val viewport = first.height + dock.paddingTop + dock.paddingBottom + peek
+        dockScroll.layoutParams = dockScroll.layoutParams.apply { height = viewport }
+        // Relleno inferior para que la última fila (más baja) pueda subir hasta arriba del panel y no deje ver la anterior cortada.
+        val last = dock.getChildAt(dock.childCount - 1)
+        dock.setPadding(dock.paddingLeft, dock.paddingTop, dock.paddingRight, (viewport - last.height).coerceAtLeast(dpi(12f)))
     }
 
     private fun addTile(row: LinearLayout, view: View, gap: Int) {
@@ -499,8 +493,8 @@ class MainActivity : BaseActivity() {
         return true
     }
 
-    /** Punto "en uso": la app tiene un servicio en primer plano o es la que suena. */
-    private fun isLive(pkg: String, t: Track?): Boolean = running[pkg] == true || t?.pkg == pkg
+    /** Punto "en uso": es la app que está sonando en segundo plano. */
+    private fun isLive(pkg: String, t: Track?): Boolean = t?.pkg == pkg
 
     private fun refreshLive(t: Track?) {
         tileByPkg.forEach { (pkg, tile) -> tile.setLive(isLive(pkg, t)) }

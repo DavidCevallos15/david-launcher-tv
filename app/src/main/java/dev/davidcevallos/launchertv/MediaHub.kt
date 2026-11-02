@@ -1,6 +1,5 @@
 package dev.davidcevallos.launchertv
 
-import android.app.ActivityManager
 import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
@@ -32,7 +31,6 @@ object MediaHub {
 
     private val main = Handler(Looper.getMainLooper())
     private val listeners = LinkedHashSet<(Track?) -> Unit>()
-    private var appContext: Context? = null
     private var controllers: List<MediaController> = emptyList()
     private var current: MediaController? = null
 
@@ -56,7 +54,6 @@ object MediaHub {
     /** Empieza a seguir las sesiones. Idempotente; si falta el acceso no hace nada. */
     fun start(context: Context) {
         val ctx = context.applicationContext
-        appContext = ctx
         if (!hasAccess(ctx)) return
         val sm = ctx.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
         val component = ComponentName(ctx, MediaListenerService::class.java)
@@ -124,28 +121,8 @@ object MediaHub {
 
     fun previous() = current?.transportControls?.skipToPrevious()
 
-    /**
-     * Cierra la app que suena: la detiene y, un instante después, pide al sistema matar su proceso.
-     * (Mientras suena, su servicio en primer plano lo protege; por eso se detiene antes.)
-     */
-    fun close() {
-        val c = current ?: return
-        val pkg = c.packageName
-        c.transportControls.stop()
-        killLater(pkg)
-    }
-
-    /** Detiene lo que suene de [pkg] (si es esa app) y la cierra. Usado también por "Apps abiertas". */
-    fun closePackage(pkg: String) {
-        controllers.firstOrNull { it.packageName == pkg }?.transportControls?.stop()
-        killLater(pkg)
-    }
-
-    private fun killLater(pkg: String) {
-        val ctx = appContext ?: return
-        main.postDelayed({
-            (ctx.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).killBackgroundProcesses(pkg)
-            refresh()
-        }, 900L)
+    /** Detiene lo que suena. La app se queda en segundo plano; el sistema la libera cuando necesite la RAM. */
+    fun stop() {
+        current?.transportControls?.stop()
     }
 }

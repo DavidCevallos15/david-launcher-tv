@@ -70,15 +70,14 @@ object Theme {
         Option("0", "Nunca"), Option("10", "10 segundos"), Option("30", "30 segundos"), Option("60", "1 minuto"),
     )
 
-    /** Fondo de las barras: relleno de arriba / de abajo, borde. `tint` = mezclar con el color de acento. */
-    class GlassStyle(id: String, label: String, val top: Int, val bottom: Int, val stroke: Int, val tint: Boolean = false) :
-        Option(id, label)
+    /** Fondo de las tarjetas de widgets: un solo color translúcido (barato de dibujar encima del video). */
+    class GlassStyle(id: String, label: String, val fill: Int, val tint: Boolean = false) : Option(id, label)
 
     val GLASS = listOf(
-        GlassStyle("light", "Cristal claro", 0x33FFFFFF, 0x14FFFFFF, 0x40FFFFFF),
-        GlassStyle("medium", "Cristal medio", 0x55FFFFFF, 0x2EFFFFFF, 0x55FFFFFF),
-        GlassStyle("dark", "Cristal oscuro", 0x99000000.toInt(), 0x66000000, 0x33FFFFFF),
-        GlassStyle("tint", "Color de acento", 0x66FFFFFF, 0x33FFFFFF, 0x66FFFFFF, tint = true),
+        GlassStyle("light", "Cristal claro", 0x2EFFFFFF),
+        GlassStyle("medium", "Cristal medio", 0x4DFFFFFF),
+        GlassStyle("dark", "Cristal oscuro", 0x99000000.toInt()),
+        GlassStyle("tint", "Color de acento", 0x59FFFFFF, tint = true),
     )
 
     fun font(id: String): FontOption = FONTS.firstOrNull { it.id == id } ?: FONTS[1]
@@ -88,22 +87,14 @@ object Theme {
 
     fun accent(context: Context): Int = color(LauncherPrefs(context).accent).color
 
-    /** Barra "vidrio" (según el estilo elegido) para el dock, el selector de fondos y las tarjetas de widgets. */
-    fun glassDrawable(context: Context, radiusDp: Float = 28f): GradientDrawable {
+    /** Fondo redondeado y plano para tarjetas de widgets y avisos. */
+    fun glassDrawable(context: Context, radiusDp: Float = 24f): GradientDrawable {
         val prefs = LauncherPrefs(context)
         val style = glassStyle(prefs.glass)
         val accent = color(prefs.accent).color
-        fun tinted(c: Int, alpha: Int) = if (style.tint) (accent and 0x00FFFFFF) or (alpha shl 24) else c
-        val d = context.resources.displayMetrics
-        return GradientDrawable(
-            GradientDrawable.Orientation.TOP_BOTTOM,
-            intArrayOf(tinted(style.top, 0x77), tinted(style.bottom, 0x33)),
-        ).apply {
-            cornerRadius = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, radiusDp, d)
-            setStroke(
-                TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 1f, d).toInt().coerceAtLeast(1),
-                if (style.tint) (accent and 0x00FFFFFF) or (0x99 shl 24) else style.stroke,
-            )
+        return GradientDrawable().apply {
+            setColor(if (style.tint) (accent and 0x00FFFFFF) or (0x66 shl 24) else style.fill)
+            cornerRadius = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, radiusDp, context.resources.displayMetrics)
         }
     }
 

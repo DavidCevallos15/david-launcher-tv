@@ -27,9 +27,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:fontFamily="sans-serif-light"
-            android:shadowColor="#99000000"
-            android:shadowDy="2"
-            android:shadowRadius="10"
             android:text="@string/sections_title"
             android:textColor="#FFFFFF"
             android:textSize="34sp" />

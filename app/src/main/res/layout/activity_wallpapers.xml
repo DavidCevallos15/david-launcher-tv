@@ -28,9 +28,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:fontFamily="sans-serif-light"
-            android:shadowColor="#99000000"
-            android:shadowDy="2"
-            android:shadowRadius="10"
             android:text="@string/wallpapers"
             android:textColor="#FFFFFF"
             android:textSize="32sp" />
@@ -39,9 +36,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:shadowColor="#99000000"
-            android:shadowDy="1"
-            android:shadowRadius="8"
             android:text="@string/wallpapers_hint"
             android:textColor="#D9FFFFFF"
             android:textSize="15sp" />
@@ -60,9 +54,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:fontFamily="sans-serif-light"
-            android:shadowColor="#99000000"
-            android:shadowDy="2"
-            android:shadowRadius="12"
             android:textColor="#FFFFFF"
             android:textSize="44sp" />
 
@@ -70,9 +61,6 @@
             android:id="@+id/wpSubtitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:shadowColor="#99000000"
-            android:shadowDy="1"
-            android:shadowRadius="8"
             android:textColor="#D9FFFFFF"
             android:textSize="18sp" />
     </LinearLayout>
@@ -85,10 +73,7 @@
         android:layout_marginStart="32dp"
         android:layout_marginEnd="32dp"
         android:layout_marginBottom="28dp"
-        android:background="@drawable/bg_glass"
         android:clipToPadding="false"
-        android:fadingEdgeLength="48dp"
-        android:requiresFadingEdge="horizontal"
         android:overScrollMode="never"
         android:scrollbars="none">
 

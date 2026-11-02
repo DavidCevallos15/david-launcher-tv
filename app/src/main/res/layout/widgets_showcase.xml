@@ -16,9 +16,6 @@
         android:layout_height="wrap_content"
         android:gravity="center"
         android:includeFontPadding="false"
-        android:shadowColor="#99000000"
-        android:shadowDy="3"
-        android:shadowRadius="14"
         android:textColor="#FFFFFF"
         android:textSize="56sp" />
 
@@ -28,9 +25,6 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
         android:gravity="center"
-        android:shadowColor="#99000000"
-        android:shadowDy="2"
-        android:shadowRadius="10"
         android:textColor="#E6FFFFFF"
         android:textSize="22sp" />
 
@@ -40,9 +34,6 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:gravity="center"
-        android:shadowColor="#99000000"
-        android:shadowDy="2"
-        android:shadowRadius="10"
         android:textColor="#FFFFFF"
         android:textSize="26sp" />
 

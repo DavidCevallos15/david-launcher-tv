@@ -2,13 +2,11 @@ package dev.davidcevallos.launchertv
 
 import android.content.Context
 import android.graphics.Color
-import android.graphics.Outline
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
-import android.view.ViewOutlineProvider
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -24,14 +22,13 @@ class NowPlayingCard(private val context: Context, private val big: Boolean) {
     private val artSize = context.dpi(if (big) 92f else 40f)
     private val accent get() = Theme.accent(context)
 
+    private val artRadius = context.dpi(if (big) 14f else 8f).toFloat()
     private val art = ImageView(context).apply {
-        scaleType = ImageView.ScaleType.CENTER_CROP
-        setBackgroundColor(0x33FFFFFF)
-        val r = context.dpi(if (big) 14f else 8f).toFloat()
-        outlineProvider = object : ViewOutlineProvider() {
-            override fun getOutline(view: View, outline: Outline) = outline.setRoundRect(0, 0, view.width, view.height, r)
+        scaleType = ImageView.ScaleType.FIT_XY
+        background = GradientDrawable().apply {
+            setColor(0x33FFFFFF)
+            cornerRadius = artRadius
         }
-        clipToOutline = true
     }
     private val appIcon = ImageView(context)
     private val title = TextView(context).apply {
@@ -40,7 +37,6 @@ class NowPlayingCard(private val context: Context, private val big: Boolean) {
         typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
         maxLines = 1
         ellipsize = TextUtils.TruncateAt.END
-        setShadowLayer(8f, 0f, 2f, 0x99000000.toInt())
     }
     private val artist = TextView(context).apply {
         setTextColor(0xE6FFFFFF.toInt())
@@ -52,7 +48,7 @@ class NowPlayingCard(private val context: Context, private val big: Boolean) {
     private val playPause = button(R.drawable.ic_pause, "Pausa / reproducir") { MediaHub.playPause() }
     private val prev = button(R.drawable.ic_skip_prev, "Anterior") { MediaHub.previous() }
     private val next = button(R.drawable.ic_skip_next, "Siguiente") { MediaHub.next() }
-    private val close = button(R.drawable.ic_close, "Cerrar la app") { MediaHub.close() }
+    private val close = button(R.drawable.ic_close, "Detener") { MediaHub.stop() }
 
     /** El botón que recibe el foco al entrar al modo "solo wallpaper". */
     val primaryFocus: View get() = playPause
@@ -100,7 +96,7 @@ class NowPlayingCard(private val context: Context, private val big: Boolean) {
         view.visibility = View.VISIBLE
         title.text = track.title
         artist.text = track.artist
-        if (track.art != null) art.setImageBitmap(track.art) else art.setImageDrawable(null)
+        art.setImageDrawable(track.art?.let { RoundedCoverDrawable(it, artRadius) })
         if (shownPkg != track.pkg) {
             shownPkg = track.pkg
             appIcon.setImageDrawable(runCatching { pm.getApplicationIcon(track.pkg) }.getOrNull())

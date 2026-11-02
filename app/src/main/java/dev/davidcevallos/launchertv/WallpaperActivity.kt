@@ -35,7 +35,6 @@ class WallpaperActivity : BaseActivity() {
         nameView = findViewById(R.id.wpName)
         subtitleView = findViewById(R.id.wpSubtitle)
         store = WallpaperStore(this)
-        findViewById<android.view.View>(R.id.wpScroll).background = Theme.glassDrawable(this)
 
         // Listar la carpeta de fondos puede tardar ~1 s en el TV: fuera del hilo principal.
         io.execute {
