@@ -1,0 +1,20 @@
+# Build
+.gradle/
+build/
+app/build/
+*.apk
+*.aab
+local.properties
+.idea/
+*.iml
+
+# Firma: nunca al repo
+*.jks
+*.keystore
+keystore.properties
+
+# Datos personales / locales
+wallpapers/
+DEBLOAT-LOG.md
+.env
+.kotlin/

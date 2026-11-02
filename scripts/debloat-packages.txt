@@ -1,0 +1,31 @@
+# Paquetes a deshabilitar (pm disable-user, reversible).
+# Probado en TCL BeyondTV2 (Android TV 11). Una línea por paquete, # = comentario.
+# NO incluir: com.tcl.tv, com.tcl.tvinput, com.tcl.autopair, com.google.android.tv.remote.service,
+#             com.google.android.gms, com.google.android.gsf, com.android.vending,
+#             com.android.location.fused, com.google.android.katniss (búsqueda por voz)
+
+# Streaming que no uso
+com.amazon.amazonvideo.livingroom
+com.crunchyroll.crunchyroid
+com.wbd.stream
+com.wemesh.android
+tv.twitch.android.app
+tv.wuaki.apptv
+
+# TCL extras
+com.tcl.smartalexa
+com.tcl.micmanager
+com.tcl.esticker
+com.tcl.notereminder
+com.tcl.messagebox
+com.tcl.overseasappshow
+com.tcl.waterfall.overseas
+com.tcl.gallery
+com.tcl.ui_mediaCenter
+
+# Google extras
+com.google.android.play.games
+
+# Otros
+ph.spacedesk.beta
+flar2.homebutton
