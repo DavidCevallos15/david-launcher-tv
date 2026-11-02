@@ -3,6 +3,7 @@
 Launcher minimalista para Android TV, inspirado en tvOS: fondo (degradado, imagen o video en loop) con selector integrado, widgets en vivo (reloj, fecha, saludo según la hora y clima), dock de apps que tú organizas, colores y fuentes editables, y cero recomendaciones ni publicidad.
 
 - **~250 KB** en release (incluye 4 fuentes opcionales), sin AndroidX ni librerías de terceros (framework puro + Kotlin)
+- Incluye **TV Remote**, app de control para el celular (~60 KB): navegación, teclado, dictado y voz
 - **Sin root**, sin desbloquear bootloader, 100 % reversible
 - Fondos leídos del almacenamiento propio de la app: no van en el APK ni en el repo
 - Android 5.0+ (API 21): Android TV, Google TV y Fire TV. Probado en TCL BeyondTV2 (Android TV 11)
@@ -114,6 +115,33 @@ Las apps que instales desde Play Store aparecen en **Apps** sin tocar código.
 | `AppRepository` | Resuelve apps (intent Leanback primero) y su banner |
 | `TileFactory` | Tarjetas con escala, sombra, aro de foco y etiqueta; la enfocada se dibuja por encima de las vecinas |
 | `AllAppsActivity` | Grid de todas las apps; columnas calculadas según el ancho de pantalla |
+| `remote/…/core` | Protocolo Android TV Remote v2: protobuf mínimo, pairing, sesión TLS (sin dependencias) |
+| `remote/…/ui` | App móvil: clickpad, teclado, voz, descubrimiento mDNS, identidad en AndroidKeyStore |
+
+## TV Remote (app móvil)
+
+Control remoto para el celular (Android) en `remote/`. Habla el protocolo oficial **Android TV Remote v2** (el de la app Google TV), así que funciona con cualquier Android TV / Google TV sin ADB ni root.
+
+| Función | Cómo |
+|---|---|
+| Navegación | Clickpad estilo Siri Remote: desliza para moverte, toca para OK, toca un borde para una flecha, mantén para OK largo |
+| Teclado | Escribe en el celular y se inserta en el TV (con tildes, ñ y emojis). Se abre solo cuando el TV enfoca un campo de texto |
+| Dictado | Botón de mic en el teclado: voz → texto con el reconocedor del celular |
+| Voz al TV | Mantén el mic azul: el audio va a la búsqueda/Asistente del TV, como el control físico |
+| Volumen | Botones en pantalla (mantener repite) y **las teclas de volumen del celular** |
+| Accesos | Netflix, YouTube, Disney+, Spotify, Entrada, Ajustes |
+
+**Primera vez:** abre la app → elige tu TV (se descubre por mDNS) o escribe su IP → ingresa el código de 6 caracteres que aparece en el TV.
+
+**Seguridad:** TLS mutuo; la llave del celular se genera dentro del AndroidKeyStore y nunca sale de él. El PIN amarra criptográficamente ambos certificados (anti-MITM) y después se fija el certificado del TV (TOFU): si cambia, la app pide emparejar de nuevo.
+
+**Tests:** el protocolo es Kotlin puro (`remote/.../core`) y se prueba contra un TV simulado que parsea cada mensaje con el protobuf oficial:
+
+```bash
+pip install androidtvremote2
+python3 remote/tools/fake_tv.py --out /tmp/fake-tv &
+FAKE_TV_DIR=/tmp/fake-tv ./gradlew :remote:testDebugUnitTest
+```
 
 ## Licencia
 

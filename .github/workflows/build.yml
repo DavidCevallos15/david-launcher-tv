@@ -18,9 +18,36 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
       - uses: gradle/actions/setup-gradle@v5
-      - run: ./gradlew --no-daemon assembleDebug
+
+      # E2E del control remoto contra un TV simulado (protobuf oficial de Google)
+      - name: Fake TV
+        run: |
+          pip install --quiet androidtvremote2
+          python3 remote/tools/fake_tv.py --out "$RUNNER_TEMP/fake-tv" > "$RUNNER_TEMP/fake-tv.log" 2>&1 &
+          for i in $(seq 1 40); do [ -f "$RUNNER_TEMP/fake-tv/ready" ] && break; sleep 0.5; done
+
+      - name: Tests
+        run: FAKE_TV_DIR="$RUNNER_TEMP/fake-tv" ./gradlew --no-daemon :remote:testDebugUnitTest
+
+      - name: Verificación del TV simulado
+        if: always()
+        run: |
+          sleep 2
+          cat "$RUNNER_TEMP/fake-tv.log"
+          grep -q '^OK' "$RUNNER_TEMP/fake-tv/result.txt"
+
+      - name: Build
+        run: ./gradlew --no-daemon :app:assembleDebug :remote:assembleDebug
+
       - uses: actions/upload-artifact@v5
         with:
           name: david-launcher-tv-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v5
+        with:
+          name: tv-remote-debug
+          path: remote/build/outputs/apk/debug/remote-debug.apk
