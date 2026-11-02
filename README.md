@@ -133,6 +133,17 @@ Control remoto para el celular (Android) en `remote/`. Habla el protocolo oficia
 
 **Primera vez:** abre la app → elige tu TV (se descubre por mDNS) o escribe su IP → ingresa el código de 6 caracteres que aparece en el TV.
 
+**Si no escribe en el TV:** el texto con tildes (IME) solo lo entiende **Gboard para Android TV**; varios TCL traen su propio teclado. Cámbialo en el TV (Ajustes → Preferencias del dispositivo → Teclado → Teclado actual → Gboard) o por ADB:
+
+```bash
+adb shell ime list -s                      # ver los teclados instalados
+adb shell ime set com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME
+```
+
+Sin cambiar de teclado, en el panel de teclado toca **Modo** para usar *Teclas* (letra por letra, sin tildes).
+
+**Diagnóstico:** mantén presionado el nombre del TV en la app para ver qué funciones anuncia el TV y cada mensaje enviado/recibido; el botón *Copiar* lo deja listo para compartir.
+
 **Si falla el emparejamiento:** toca el estado en la app para ver el error completo. Si persiste, en el TV: Ajustes → Apps → Apps del sistema → *Android TV Remote Service* → Borrar datos, y empareja de nuevo.
 
 **Seguridad:** TLS mutuo con una identidad RSA-2048 propia del celular, guardada cifrada (AES-256-GCM con llave del AndroidKeyStore) en almacenamiento excluido de backups. El PIN amarra criptográficamente ambos certificados (anti-MITM) y después se fija el certificado del TV (TOFU): si cambia, la app pide emparejar de nuevo.

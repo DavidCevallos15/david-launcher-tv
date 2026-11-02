@@ -80,4 +80,10 @@ class ProtocolTest {
         assertEquals(listOf(77, 56), TextKeys.toKeyCodes("@."))
         assertEquals(emptyList<Int>(), TextKeys.toKeyCodes("🎬"))
     }
+
+    @Test fun describeIsReadableForDiagnostics() {
+        assertEquals("app_link {1: \"market://launch?id=x\"}", Remote.describe(Remote.appLink("market://launch?id=x")))
+        assertEquals("key {1: 19, 2: 3}", Remote.describe(Remote.key(Keys.DPAD_UP)))
+        assertEquals("KEY IME APP_LINK", Remote.featureNames(Remote.F_KEY or Remote.F_IME or Remote.F_APP_LINK))
+    }
 }

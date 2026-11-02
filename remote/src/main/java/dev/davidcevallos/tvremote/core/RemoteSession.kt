@@ -23,7 +23,11 @@ class RemoteSession private constructor(
         fun onCurrentApp(packageName: String) {}
         fun onImeField(active: Boolean) {}
         fun onDisconnected(error: Throwable?) {}
+        /** Una línea por mensaje (salvo ping/pong y audio) para el panel de diagnóstico. */
+        fun onLog(line: String) {}
     }
+
+    enum class WriteMode { AUTO, IME, KEYS }
 
     private val writer = Executors.newSingleThreadExecutor { r -> Thread(r, "tv-writer").apply { isDaemon = true } }
     private val closed = AtomicBoolean(false)
@@ -32,6 +36,10 @@ class RemoteSession private constructor(
     @Volatile private var imeCounter = 0
     @Volatile private var fieldCounter = 0
     @Volatile var imeActive = false; private set
+    /** Texto actual del campo enfocado en el TV, según lo último que el TV reportó. */
+    @Volatile var fieldText = ""; private set
+    @Volatile var tvFeatures = 0; private set
+    @Volatile private var pendingLinks: List<String> = emptyList()
     @Volatile private var voiceCallback: ((Int?) -> Unit)? = null
 
     val voiceSupported get() = features and Remote.F_VOICE != 0
@@ -52,9 +60,18 @@ class RemoteSession private constructor(
     }
 
     private fun handle(msg: ProtoMessage) {
+        if (!msg.has(Remote.PING_REQUEST)) listener.onLog("← " + Remote.describe(msg))
+        msg.message(Remote.ERROR)?.let {
+            // Si un app link falló, probar el siguiente formato
+            val next = pendingLinks.firstOrNull()
+            if (next != null) { pendingLinks = pendingLinks.drop(1); sendLogged(Remote.appLink(next)) }
+            return
+        }
         msg.message(Remote.CONFIGURE)?.let { cfg ->
-            features = cfg.int(1) and Remote.WANTED_FEATURES
+            tvFeatures = cfg.int(1)
+            features = tvFeatures and Remote.WANTED_FEATURES
             val tvModel = cfg.message(2)?.string(1).orEmpty()
+            listener.onLog("TV anuncia: ${Remote.featureNames(tvFeatures)} (code1=$tvFeatures) → activo: ${Remote.featureNames(features)}")
             sendNow(Remote.configure(features, model, vendor))
             listener.onReady(tvModel, features)
             return
@@ -66,16 +83,21 @@ class RemoteSession private constructor(
             listener.onVolume(it.int(7), it.int(6), it.bool(8)); return
         }
         msg.message(Remote.IME_KEY_INJECT)?.let { ime ->
-            ime.message(1)?.string(12)?.takeIf { it.isNotEmpty() }?.let(listener::onCurrentApp)
-            ime.message(2)?.let { fieldCounter = it.int(1); setIme(true) }
+            ime.message(1)?.let { app ->
+                if (app.has(1)) imeCounter = app.int(1) // app_info.counter = contador IME vigente
+                app.string(12).takeIf { it.isNotEmpty() }?.let(listener::onCurrentApp)
+            }
+            ime.message(2)?.let { field -> fieldCounter = field.int(1); fieldText = field.string(2); setIme(true) }
             return
         }
-        msg.message(Remote.IME_BATCH_EDIT)?.let {
-            imeCounter = it.int(1); fieldCounter = it.int(2); setIme(true); return
+        msg.message(Remote.IME_BATCH_EDIT)?.let { edit ->
+            imeCounter = edit.int(1); fieldCounter = edit.int(2)
+            edit.message(3)?.message(2)?.let { fieldText = it.string(3) }
+            setIme(true); return
         }
         msg.message(Remote.IME_SHOW_REQUEST)?.let { req ->
             val status = req.message(2)
-            if (status != null) fieldCounter = status.int(1)
+            if (status != null) { fieldCounter = status.int(1); fieldText = status.string(2) }
             setIme(status != null); return
         }
         msg.message(Remote.VOICE_BEGIN)?.let {
@@ -94,27 +116,50 @@ class RemoteSession private constructor(
     enum class TypeMode { IME, KEYS }
 
     /**
-     * Escribe en el TV. Si el TV anunció un campo de texto por el protocolo IME, el texto entra
-     * completo con tildes/ñ/emojis; si no, se teclea carácter a carácter (sin tildes), que
-     * funciona con cualquier teclado en pantalla.
+     * Escribe en el TV.
+     *  - IME: el TV recibe el texto completo del campo (lo que ya había + lo nuevo), con tildes/ñ/emojis.
+     *    Requiere que el teclado del TV sea compatible (Gboard para TV).
+     *  - KEYS: tecla por tecla, sin tildes; sirve con cualquier teclado.
+     *  - AUTO: IME si el TV anunció su campo, si no KEYS.
      */
-    fun type(value: String): TypeMode {
-        if (imeActive && features and Remote.F_IME != 0) {
-            text(value)
+    fun type(value: String, mode: WriteMode = WriteMode.AUTO): TypeMode {
+        val useIme = when (mode) {
+            WriteMode.IME -> true
+            WriteMode.KEYS -> false
+            WriteMode.AUTO -> imeActive && features and Remote.F_IME != 0
+        }
+        if (useIme) {
+            val full = fieldText + value
+            fieldText = full
+            sendLogged(Remote.text(full, imeCounter, fieldCounter))
             return TypeMode.IME
         }
-        TextKeys.toKeyCodes(value).forEach { key(it) }
+        val codes = TextKeys.toKeyCodes(value)
+        listener.onLog("→ ${codes.size} teclas para \"$value\"")
+        codes.forEach { key(it) }
         return TypeMode.KEYS
     }
 
+    /** Reemplaza el texto del campo del TV (IME). */
     fun text(value: String) {
-        if (value.isNotEmpty()) post(Remote.text(value, imeCounter, fieldCounter))
+        if (value.isNotEmpty()) { fieldText = value; sendLogged(Remote.text(value, imeCounter, fieldCounter)) }
     }
 
-    /** Abre una app por package name (market://launch) o por deep link (https://…). */
-    fun launch(appIdOrLink: String) {
-        val link = if ("://" in appIdOrLink) appIdOrLink else "market://launch?id=$appIdOrLink"
-        post(Remote.appLink(link))
+    /**
+     * Abre una app. Prueba los formatos en orden: si el TV responde con error, envía el siguiente.
+     * Package name → market://launch?id=…; también acepta deep links (https://…).
+     */
+    fun launch(vararg appIdsOrLinks: String) {
+        val links = appIdsOrLinks.map { if ("://" in it) it else "market://launch?id=$it" }
+        if (links.isEmpty()) return
+        if (features and Remote.F_APP_LINK == 0) listener.onLog("⚠ el TV no activó APP_LINK: puede ignorar el app link")
+        pendingLinks = links.drop(1)
+        sendLogged(Remote.appLink(links.first()))
+    }
+
+    private fun sendLogged(bytes: ByteArray) {
+        listener.onLog("→ " + Remote.describe(bytes))
+        post(bytes)
     }
 
     /**

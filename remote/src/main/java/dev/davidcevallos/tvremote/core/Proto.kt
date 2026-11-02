@@ -73,6 +73,26 @@ class ProtoMessage private constructor(private val fields: Map<Int, List<Any>>) 
     fun string(field: Int): String = bytes(field).toString(Charsets.UTF_8)
     fun message(field: Int): ProtoMessage? = (fields[field]?.last() as? ByteArray)?.let { parse(it) }
 
+    /** Volcado legible para el diagnóstico: {1: 5, 2: {3: "texto"}}. Sin esquema: heurístico. */
+    fun dump(depth: Int = 0): String = fields.entries.joinToString(", ", "{", "}") { (k, values) ->
+        values.joinToString(", ") { v -> "$k: ${render(v, depth)}" }
+    }
+
+    private fun render(v: Any, depth: Int): String = when (v) {
+        is Long -> v.toString()
+        is ByteArray -> {
+            val text = v.toString(Charsets.UTF_8)
+            val printable = v.isNotEmpty() && text.none { it == '\uFFFD' || (it.isISOControl() && it != '\n') }
+            val nested = if (depth < 5) runCatching { parse(v) }.getOrNull()?.takeIf { it.fields.isNotEmpty() && it.fields.keys.all { k -> k in 1..200 } } else null
+            when {
+                printable && (nested == null || text.length < 40) -> "\"" + text.take(80) + "\""
+                nested != null -> nested.dump(depth + 1)
+                else -> "bytes[${v.size}]"
+            }
+        }
+        else -> v.toString()
+    }
+
     companion object {
         fun parse(data: ByteArray): ProtoMessage {
             val fields = LinkedHashMap<Int, MutableList<Any>>()

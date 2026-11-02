@@ -82,6 +82,26 @@ object Remote {
     const val START_LONG = 1
     const val END_LONG = 2
 
+    private val NAMES = mapOf(
+        CONFIGURE to "configure", SET_ACTIVE to "set_active", ERROR to "error",
+        PING_REQUEST to "ping", PING_RESPONSE to "pong", KEY_INJECT to "key",
+        IME_KEY_INJECT to "ime_key_inject", IME_BATCH_EDIT to "ime_batch_edit", IME_SHOW_REQUEST to "ime_show",
+        VOICE_BEGIN to "voice_begin", VOICE_PAYLOAD to "voice_payload", VOICE_END to "voice_end",
+        START to "start", SET_VOLUME_LEVEL to "volume", APP_LINK_LAUNCH to "app_link",
+    )
+
+    fun describe(raw: ByteArray): String = describe(ProtoMessage.parse(raw))
+
+    fun describe(msg: ProtoMessage): String {
+        val field = NAMES.keys.firstOrNull { msg.has(it) }
+        return if (field != null) "${NAMES[field]} ${msg.message(field)?.dump() ?: "{}"}" else msg.dump()
+    }
+
+    fun featureNames(bits: Int): String = listOf(
+        F_PING to "PING", F_KEY to "KEY", F_IME to "IME", F_VOICE to "VOICE",
+        F_POWER to "POWER", F_VOLUME to "VOLUME", F_APP_LINK to "APP_LINK",
+    ).filter { bits and it.first != 0 }.joinToString(" ") { it.second }
+
     fun configure(features: Int, model: String, vendor: String) = ProtoWriter()
         .message(CONFIGURE) {
             int(1, features)

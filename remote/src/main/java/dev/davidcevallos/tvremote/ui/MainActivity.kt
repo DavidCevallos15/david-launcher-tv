@@ -83,6 +83,7 @@ class MainActivity : Activity() {
         bindSetup()
         bindRemote()
         bindKeyboard()
+        bindWriteMode()
     }
 
     override fun onStart() {
@@ -257,8 +258,11 @@ class MainActivity : Activity() {
             if (ready) setStatus(Status.OK, getString(R.string.connected))
         }.let { }
 
+        override fun onLog(line: String) = main.post { log(line) }.let { }
+
         override fun onImeField(active: Boolean) = main.post {
-            imeHint.text = if (active) "El TV espera texto" else ""
+            imeActiveOnTv = active
+            refreshModeLabel()
             if (active && typePanel.visibility != View.VISIBLE) openKeyboard()
         }.let { }
 
@@ -307,6 +311,7 @@ class MainActivity : Activity() {
         findViewById<ImageButton>(R.id.keyboard).setOnClickListener { openKeyboard() }
         bindMic(findViewById(R.id.mic))
 
+        findViewById<View>(R.id.statusBox).setOnLongClickListener { showDiagnostics(); true }
         findViewById<View>(R.id.statusBox).setOnClickListener {
             when {
                 session != null -> confirmChangeTv()
@@ -325,7 +330,7 @@ class MainActivity : Activity() {
                     it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                     when (target) {
                         is Int -> send(target)
-                        is String -> session?.launch(target) ?: connect()
+                        is Array<*> -> session?.launch(*target.map { it as String }.toTypedArray()) ?: connect()
                     }
                 }
             })
@@ -563,7 +568,7 @@ class MainActivity : Activity() {
     private fun typeOnTv(text: String) {
         val s = session ?: return connect()
         val shown = if (text.length > 40) text.take(40) + "…" else text
-        when (s.type(text)) {
+        when (s.type(text, writeMode)) {
             RemoteSession.TypeMode.IME -> statusText.text = "Escrito en el TV: “$shown”"
             RemoteSession.TypeMode.KEYS -> {
                 statusText.text = "Tecleado en el TV: “$shown”"
@@ -578,6 +583,81 @@ class MainActivity : Activity() {
     }
 
     private val restoreStatus = Runnable { if (ready) setStatus(Status.OK, getString(R.string.connected)) }
+
+    // ======================================================================
+    // Modo de escritura y diagnóstico
+    // ======================================================================
+
+    private var imeActiveOnTv = false
+    private var writeMode: RemoteSession.WriteMode
+        get() = RemoteSession.WriteMode.valueOf(prefs.getString(K_WRITE, RemoteSession.WriteMode.AUTO.name)!!)
+        set(v) { prefs.edit().putString(K_WRITE, v.name).apply(); refreshModeLabel() }
+
+    /** Toca la etiqueta del panel de teclado para alternar Auto → IME → Teclas. */
+    private fun bindWriteMode() {
+        imeHint.setOnClickListener {
+            val modes = RemoteSession.WriteMode.values()
+            writeMode = modes[(writeMode.ordinal + 1) % modes.size]
+            Toast.makeText(this, when (writeMode) {
+                RemoteSession.WriteMode.AUTO -> "Auto: IME si el TV lo pide, si no teclas"
+                RemoteSession.WriteMode.IME -> "IME: con tildes (requiere Gboard en el TV)"
+                RemoteSession.WriteMode.KEYS -> "Teclas: letra por letra, sin tildes, cualquier teclado"
+            }, Toast.LENGTH_SHORT).show()
+        }
+        refreshModeLabel()
+    }
+
+    private fun refreshModeLabel() {
+        val mode = when (writeMode) {
+            RemoteSession.WriteMode.AUTO -> "Auto"
+            RemoteSession.WriteMode.IME -> "IME"
+            RemoteSession.WriteMode.KEYS -> "Teclas"
+        }
+        imeHint.text = "Modo: $mode ⇄" + if (imeActiveOnTv) " · el TV espera texto" else ""
+    }
+
+    private val logLines = ArrayDeque<String>()
+    private val timeFmt = java.text.SimpleDateFormat("HH:mm:ss", Locale.US)
+
+    private fun log(line: String) {
+        logLines.addLast("${timeFmt.format(java.util.Date())} $line")
+        while (logLines.size > 200) logLines.removeFirst()
+    }
+
+    /** Mantén presionado el nombre del TV: qué anuncia el TV y cada mensaje enviado/recibido. */
+    private fun showDiagnostics() {
+        val s = session
+        val header = buildString {
+            append("TV: ${tvName.text} (${host})\n")
+            append("Conectado: ${s != null}\n")
+            if (s != null) {
+                append("TV anuncia: ${Remote.featureNames(s.tvFeatures)} (code1=${s.tvFeatures})\n")
+                append("Activo: ${Remote.featureNames(s.features)}\n")
+                append("Campo IME activo: ${s.imeActive} · texto: \"${s.fieldText}\"\n")
+            }
+            append("Modo de escritura: ${writeMode}\n\n")
+        }
+        val body = header + logLines.joinToString("\n").ifEmpty { "(sin mensajes aún)" }
+        val text = TextView(this).apply {
+            setText(body)
+            setTextIsSelectable(true)
+            typeface = android.graphics.Typeface.MONOSPACE
+            textSize = 11f
+            setTextColor(0xFFDDDDDD.toInt())
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Diagnóstico")
+            .setView(android.widget.ScrollView(this).apply { addView(text) })
+            .setPositiveButton("Copiar") { _, _ ->
+                getSystemService(android.content.ClipboardManager::class.java)
+                    .setPrimaryClip(android.content.ClipData.newPlainText("diagnostico", body))
+                Toast.makeText(this, "Copiado", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("Limpiar") { _, _ -> logLines.clear() }
+            .setNegativeButton("Cerrar", null)
+            .show()
+    }
 
     // ======================================================================
     // Utilidades
@@ -631,17 +711,22 @@ class MainActivity : Activity() {
         private const val K_HOST = "host"
         private const val K_NAME = "name"
         private const val K_PIN = "server_cert_sha256"
+        private const val K_WRITE = "write_mode"
         private const val REQ_MIC = 1
         private const val REQ_DICTATE = 2
         private const val DICTATE_TO_TV = 0
         private const val DICTATE_TO_FIELD = 1
 
         /** Package name → se abre con market://launch; Int → tecla. */
+        /**
+         * Int → tecla. Array → formatos de app link en orden: si el TV responde con error al primero,
+         * se envía el siguiente (package vía market://launch, luego deep link https).
+         */
         private val SHORTCUTS: List<Pair<String, Any>> = listOf(
-            "Netflix" to "com.netflix.ninja",
-            "YouTube" to "com.google.android.youtube.tv",
-            "Disney+" to "com.disney.disneyplus",
-            "Spotify" to "com.spotify.tv.android",
+            "Netflix" to arrayOf("com.netflix.ninja", "https://www.netflix.com/title"),
+            "YouTube" to arrayOf("com.google.android.youtube.tv", "https://www.youtube.com"),
+            "Disney+" to arrayOf("com.disney.disneyplus", "https://www.disneyplus.com"),
+            "Spotify" to arrayOf("com.spotify.tv.android", "https://open.spotify.com"),
             "Entrada" to Keys.TV_INPUT,
             "Ajustes" to Keys.SETTINGS,
         )

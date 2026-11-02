@@ -250,7 +250,9 @@
             <TextView
                 android:id="@+id/imeHint"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="48dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:gravity="center_vertical"
                 android:layout_marginStart="12dp"
                 android:layout_weight="1"
                 android:textColor="@color/muted"
