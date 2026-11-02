@@ -59,4 +59,18 @@ class ProtocolTest {
         val valid = (0..255).map { "%02XABCD".format(it) }.filter { PairingMath.secret(a, b, it) != null }
         assertEquals(1, valid.size)
     }
+
+    @Test fun selfSignedCertIsValidAndRoundTrips() {
+        val id = SoftwareIdentity.generate()
+        val cert = id.certificate
+        cert.checkValidity()                                   // vigente ahora
+        cert.checkValidity(java.util.Date(System.currentTimeMillis() - 12L * 3600 * 1000)) // y hace 12 h
+        cert.verify(cert.publicKey)                            // autofirma correcta
+        assertEquals(3, cert.version)
+        assertEquals("CN=atvremote", cert.subjectX500Principal.name)
+        assertEquals("SHA256withRSA", cert.sigAlgName)
+        val back = SoftwareIdentity.decode(id.encode())
+        assertArrayEquals(cert.encoded, back.certificate.encoded)
+        assertEquals(id.publicKey.modulus, back.publicKey.modulus)
+    }
 }

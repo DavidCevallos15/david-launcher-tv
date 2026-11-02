@@ -124,6 +124,8 @@
                         android:id="@+id/statusText"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:maxLines="2"
                         android:textColor="@color/muted"
                         android:textSize="12sp"
                         tools:text="Conectado · vol 12" />

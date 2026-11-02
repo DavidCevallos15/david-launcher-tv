@@ -40,7 +40,8 @@ class MainActivity : Activity() {
     private val main = Handler(Looper.getMainLooper())
     private val io = Executors.newSingleThreadExecutor()
     private val prefs by lazy { getSharedPreferences("tv", MODE_PRIVATE) }
-    private val identity by lazy { KeyStoreIdentity.loadOrCreate() }
+    private val identity by lazy { IdentityStore.loadOrCreate(this) }
+    private var lastError: Throwable? = null
     private lateinit var discovery: TvDiscovery
 
     @Volatile private var session: RemoteSession? = null
@@ -149,7 +150,7 @@ class MainActivity : Activity() {
             }
             main.post {
                 pairing.onSuccess { askPin(it) }
-                    .onFailure { setStatus(Status.OFFLINE, "No se pudo emparejar: ${it.message}") }
+                    .onFailure { fail("No se pudo emparejar", it) }
             }
         }
     }
@@ -188,7 +189,7 @@ class MainActivity : Activity() {
                             ok.isSuccess -> { input.error = getString(R.string.pair_bad); input.selectAll() }
                             else -> {
                                 dialog.dismiss()
-                                setStatus(Status.OFFLINE, "Emparejamiento rechazado: ${ok.exceptionOrNull()?.message}")
+                                fail("El TV rechazó el emparejamiento", ok.exceptionOrNull())
                             }
                         }
                     }
@@ -216,7 +217,7 @@ class MainActivity : Activity() {
             } catch (e: SSLException) {
                 main.post { if (started) startPairing() } // TV no reconoce este celular o cambió su cert
             } catch (e: Exception) {
-                main.post { scheduleRetry() }
+                main.post { lastError = e; scheduleRetry() }
             }
         }
     }
@@ -233,7 +234,8 @@ class MainActivity : Activity() {
             setStatus(Status.CONNECTING, getString(R.string.connecting))
             main.postDelayed({ if (started && session == null) connect() }, 1_500L * retries)
         } else {
-            setStatus(Status.OFFLINE, getString(R.string.offline))
+            if (lastError != null) fail("Sin conexión con el TV", lastError)
+            else setStatus(Status.OFFLINE, getString(R.string.offline))
         }
     }
 
@@ -241,6 +243,7 @@ class MainActivity : Activity() {
         override fun onReady(tvModel: String, features: Int) = main.post {
             ready = true
             retries = 0
+            lastError = null
             if (prefs.getString(K_NAME, null) == host && tvModel.isNotEmpty()) {
                 prefs.edit().putString(K_NAME, tvModel).apply()
                 tvName.text = tvModel
@@ -304,7 +307,11 @@ class MainActivity : Activity() {
         bindMic(findViewById(R.id.mic))
 
         findViewById<View>(R.id.statusBox).setOnClickListener {
-            if (session == null) { retries = 0; connect() } else confirmChangeTv()
+            when {
+                session != null -> confirmChangeTv()
+                lastError != null -> showErrorDetail()
+                else -> { retries = 0; connect() }
+            }
         }
 
         val apps = findViewById<LinearLayout>(R.id.apps)
@@ -512,6 +519,32 @@ class MainActivity : Activity() {
         }
         statusDot.background.mutate().setTint(color)
         statusText.text = if (status == Status.OK && volumeText.isNotEmpty()) "$text · $volumeText" else text
+    }
+
+    /** Muestra un resumen corto; el detalle completo (cadena de causas) se ve tocando el estado. */
+    private fun fail(summary: String, error: Throwable?) {
+        lastError = error
+        android.util.Log.w("TvRemote", summary, error)
+        setStatus(Status.OFFLINE, "$summary · toca para ver detalle")
+    }
+
+    private fun showErrorDetail() {
+        val chain = generateSequence(lastError) { it.cause }.take(5)
+            .joinToString("\n\n") { "${it.javaClass.simpleName}: ${it.message}" }
+        AlertDialog.Builder(this)
+            .setTitle("Detalle del error")
+            .setMessage(chain + "\n\nSi persiste: en el TV ve a Ajustes → Apps → Apps del sistema → " +
+                "Android TV Remote Service → Borrar datos, y vuelve a emparejar.")
+            .setPositiveButton("Reintentar") { _, _ -> lastError = null; retries = 0; connect() }
+            .setNeutralButton("Nueva identidad") { _, _ ->
+                // Regenera la llave del celular: útil si el TV quedó con un emparejamiento a medias
+                IdentityStore.reset(this)
+                prefs.edit().remove(K_PIN).apply()
+                lastError = null
+                recreate()
+            }
+            .setNegativeButton(R.string.change_tv) { _, _ -> confirmChangeTv() }
+            .show()
     }
 
     private fun hideKeyboard() {

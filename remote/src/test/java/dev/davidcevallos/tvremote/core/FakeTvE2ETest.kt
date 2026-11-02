@@ -6,13 +6,9 @@ import org.junit.Assert.fail
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
-import java.security.KeyStore
-import java.security.interfaces.RSAPublicKey
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLException
-import javax.net.ssl.X509KeyManager
 
 /**
  * E2E contra remote/tools/fake_tv.py. Se ejecuta solo si FAKE_TV_DIR está definido:
@@ -24,20 +20,15 @@ class FakeTvE2ETest {
 
     private val dir = System.getenv("FAKE_TV_DIR")?.takeIf { it.isNotEmpty() }?.let(::File)
 
-    private fun identity(file: String): TlsIdentity {
-        val ks = KeyStore.getInstance("PKCS12").apply { File(dir, file).inputStream().use { load(it, "test".toCharArray()) } }
-        val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()).apply { init(ks, "test".toCharArray()) }
-        val alias = ks.aliases().nextElement()
-        return object : TlsIdentity {
-            override val keyManager = kmf.keyManagers.first() as X509KeyManager
-            override val publicKey = ks.getCertificate(alias).publicKey as RSAPublicKey
-        }
-    }
-
     @Test fun fullFlowAgainstFakeTv() {
         assumeTrue("FAKE_TV_DIR no definido", dir != null)
         val host = "127.0.0.1"
-        val me = identity("client.p12")
+        // Identidad generada por el mismo código que corre en el celular
+        val me = SoftwareIdentity.decode(SoftwareIdentity.generate().encode()) // incluye round-trip de persistencia
+        File(dir, "client.pem").writeText(me.certificatePem())
+        val listening = File(dir, "listening")
+        repeat(100) { if (!listening.exists()) Thread.sleep(100) }
+        assertTrue("el fake TV aceptó el certificado y abrió los puertos", listening.exists())
 
         // 1) Pairing: el "usuario" lee el PIN de la pantalla del TV (pin.txt)
         val pairing = PairingSession.start(host, me, "Pixel de David", port = 16467)
@@ -50,7 +41,7 @@ class FakeTvE2ETest {
         assertEquals(File(dir, "server.sha256").readText().trim(), pinned)
 
         // 2) Un celular no emparejado es rechazado por TLS
-        val stranger = identity("stranger.p12")
+        val stranger = SoftwareIdentity.generate("intruso")
         try {
             val s = RemoteSession.connect(host, stranger, pinned, object : RemoteSession.Listener {}, port = 16466)
             // En TLS 1.3 el rechazo puede llegar en la primera lectura en vez del handshake

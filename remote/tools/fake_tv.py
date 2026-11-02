@@ -9,8 +9,9 @@ lo detecta el parser real de Google, no uno escrito por nosotros.
   pip install androidtvremote2
   python3 remote/tools/fake_tv.py --out /tmp/fake-tv
 
-Genera en --out: client.p12 (identidad emparejada), stranger.p12 (no emparejada),
-server.sha256 (cert del TV) y, durante el pairing, pin.txt (lo que "se ve en pantalla").
+Genera en --out: server.sha256 (cert del TV), y espera client.pem: el certificado que
+genera el cliente Kotlin (así se prueba su codificación DER real con OpenSSL). Durante el
+pairing escribe pin.txt (lo que "se ve en pantalla").
 Al terminar escribe result.txt con OK o la lista de fallos.
 """
 from __future__ import annotations
@@ -24,11 +25,11 @@ import socket
 import ssl
 import sys
 import threading
+import time
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID
 from google.protobuf.internal.decoder import _DecodeVarint
 from google.protobuf.internal.encoder import _VarintBytes
@@ -59,12 +60,6 @@ def write_pem(path, key, cert):
         f.write(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
                                   serialization.NoEncryption()))
         f.write(cert.public_bytes(serialization.Encoding.PEM))
-
-
-def write_p12(path, key, cert):
-    with open(path, "wb") as f:
-        f.write(pkcs12.serialize_key_and_certificates(
-            b"client", key, cert, None, serialization.BestAvailableEncryption(b"test")))
 
 
 class Framed:
@@ -228,21 +223,32 @@ def main():
     os.makedirs(a.out, exist_ok=True)
 
     skey, scert = make_identity("BeyondTV2")
-    ckey, ccert = make_identity("atvremote")
-    xkey, xcert = make_identity("intruso")
     server_pem, client_pem = os.path.join(a.out, "server.pem"), os.path.join(a.out, "client.pem")
     write_pem(server_pem, skey, scert)
-    write_pem(client_pem, ckey, ccert)
-    write_p12(os.path.join(a.out, "client.p12"), ckey, ccert)
-    write_p12(os.path.join(a.out, "stranger.p12"), xkey, xcert)
     with open(os.path.join(a.out, "server.sha256"), "w") as fp:
         fp.write(hashlib.sha256(scert.public_bytes(serialization.Encoding.DER)).hexdigest())
+    with open(os.path.join(a.out, "ready"), "w") as fp:
+        fp.write("1")
+    print("fake TV listo; esperando client.pem del cliente Kotlin", flush=True)
+
+    for _ in range(600):
+        if os.path.exists(client_pem) and os.path.getsize(client_pem) > 0:
+            break
+        time.sleep(0.1)
+    ccert = x509.load_pem_x509_certificate(open(client_pem, "rb").read())  # falla si el DER está mal
+    check(ccert.public_key().key_size == 2048, "cert Kotlin: RSA-2048, DER válido")
+    check(ccert.signature_hash_algorithm.name == "sha256", "cert Kotlin: firmado con SHA-256")
+    now = dt.datetime.now(dt.timezone.utc)
+    check(ccert.not_valid_before_utc < now - dt.timedelta(hours=12), "cert Kotlin: notBefore con margen de reloj")
+    ccert.public_key().verify(ccert.signature, ccert.tbs_certificate_bytes,
+                              __import__("cryptography.hazmat.primitives.asymmetric.padding",
+                                         fromlist=["PKCS1v15"]).PKCS1v15(), ccert.signature_hash_algorithm)
+    LOG.append("✓ cert Kotlin: autofirma verificada")
 
     pair_srv, pair_ctx = tls_server(a.pair_port, server_pem, client_pem)
     rem_srv, rem_ctx = tls_server(a.remote_port, server_pem, client_pem)
-    with open(os.path.join(a.out, "ready"), "w") as fp:
+    with open(os.path.join(a.out, "listening"), "w") as fp:
         fp.write("1")
-    print("fake TV listo", flush=True)
 
     def serve_pairing():
         s, _ = pair_srv.accept()

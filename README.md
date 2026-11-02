@@ -116,7 +116,7 @@ Las apps que instales desde Play Store aparecen en **Apps** sin tocar código.
 | `TileFactory` | Tarjetas con escala, sombra, aro de foco y etiqueta; la enfocada se dibuja por encima de las vecinas |
 | `AllAppsActivity` | Grid de todas las apps; columnas calculadas según el ancho de pantalla |
 | `remote/…/core` | Protocolo Android TV Remote v2: protobuf mínimo, pairing, sesión TLS (sin dependencias) |
-| `remote/…/ui` | App móvil: clickpad, teclado, voz, descubrimiento mDNS, identidad en AndroidKeyStore |
+| `remote/…/ui` | App móvil: clickpad, teclado, voz, descubrimiento mDNS, identidad cifrada con AndroidKeyStore |
 
 ## TV Remote (app móvil)
 
@@ -133,7 +133,9 @@ Control remoto para el celular (Android) en `remote/`. Habla el protocolo oficia
 
 **Primera vez:** abre la app → elige tu TV (se descubre por mDNS) o escribe su IP → ingresa el código de 6 caracteres que aparece en el TV.
 
-**Seguridad:** TLS mutuo; la llave del celular se genera dentro del AndroidKeyStore y nunca sale de él. El PIN amarra criptográficamente ambos certificados (anti-MITM) y después se fija el certificado del TV (TOFU): si cambia, la app pide emparejar de nuevo.
+**Si falla el emparejamiento:** toca el estado en la app para ver el error completo. Si persiste, en el TV: Ajustes → Apps → Apps del sistema → *Android TV Remote Service* → Borrar datos, y empareja de nuevo.
+
+**Seguridad:** TLS mutuo con una identidad RSA-2048 propia del celular, guardada cifrada (AES-256-GCM con llave del AndroidKeyStore) en almacenamiento excluido de backups. El PIN amarra criptográficamente ambos certificados (anti-MITM) y después se fija el certificado del TV (TOFU): si cambia, la app pide emparejar de nuevo.
 
 **Tests:** el protocolo es Kotlin puro (`remote/.../core`) y se prueba contra un TV simulado que parsea cada mensaje con el protobuf oficial:
 
