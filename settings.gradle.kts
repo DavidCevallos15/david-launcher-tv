@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "david-launcher-tv"
-include(":app")
+include(":app", ":remote")

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Remote</string>
+    <string name="setup_title">Conecta tu TV</string>
+    <string name="setup_hint">Celular y TV en el mismo WiFi. Buscando…</string>
+    <string name="manual_ip">IP del TV (ej. 192.168.1.20)</string>
+    <string name="connect">Conectar</string>
+    <string name="pair_title">Código del TV</string>
+    <string name="pair_msg">Escribe el código de 6 caracteres que aparece en la pantalla del TV.</string>
+    <string name="pair_ok">Emparejar</string>
+    <string name="pair_bad">Ese código no coincide. Revisa la pantalla del TV.</string>
+    <string name="cancel">Cancelar</string>
+    <string name="connecting">Conectando…</string>
+    <string name="connected">Conectado</string>
+    <string name="offline">Sin conexión · toca para reintentar</string>
+    <string name="type_hint">Escribe o dicta para el TV…</string>
+    <string name="change_tv">Cambiar de TV</string>
+    <string name="listening">Escuchando… suelta para enviar</string>
+    <string name="mic_denied">Sin permiso de micrófono: uso el dictado del celular</string>
+    <string name="no_stt">Este celular no tiene reconocimiento de voz</string>
+</resources>
