@@ -190,14 +190,19 @@ def run_remote(conn: ssl.SSLSocket):
             and m.remote_key_inject.direction == direction
         check(ok, f"remote: key {code}/{direction} → recibido {m.remote_key_inject.key_code}/{m.remote_key_inject.direction}")
 
-    m = f.recv(rm.RemoteMessage)
-    be = m.remote_ime_batch_edit
-    ok = m.HasField("remote_ime_batch_edit") and be.ime_counter == 5 and be.field_counter == 9 \
-        and be.edit_info[0].insert == 1 and be.edit_info[0].text_field_status.value == "Canción ñandú 🎬" \
-        and be.edit_info[0].text_field_status.start == len("Canción ñandú 🎬".encode("utf-16-le")) // 2 - 1  # índices UTF-16, como String de Java en el TV
-    check(ok, f"remote: texto Unicode vía IME → '{be.edit_info[0].text_field_status.value if be.edit_info else ''}'")
+    # El cliente puede mandar la edición con varios contadores candidatos; el TV real ignora
+    # los que no coinciden. Debe llegar al menos una con el campo vigente (9) y el texto completo.
+    edits, m = [], f.recv(rm.RemoteMessage)
+    while m.HasField("remote_ime_batch_edit") and len(edits) < 6:
+        edits.append(m.remote_ime_batch_edit)
+        m = f.recv(rm.RemoteMessage)
+    want = "Canción ñandú 🎬"
+    hit = [be for be in edits if be.ime_counter == 5 and be.field_counter == 9]
+    ok = bool(hit) and hit[0].edit_info[0].insert == 1 and hit[0].edit_info[0].text_field_status.value == want \
+        and hit[0].edit_info[0].text_field_status.start == len(want.encode("utf-16-le")) // 2 - 1
+    check(ok, f"remote: texto Unicode vía IME al campo vigente ({len(edits)} envíos, campos {[e.field_counter for e in edits]})")
+    check(len(edits) <= 4, "remote: a lo sumo 4 candidatos por edición")
 
-    m = f.recv(rm.RemoteMessage)
     check(m.remote_app_link_launch_request.app_link == "market://launch?id=com.netflix.ninja",
           f"remote: app link → {m.remote_app_link_launch_request.app_link}")
 

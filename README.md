@@ -44,7 +44,7 @@ No necesita root ni desbloquear el bootloader. La posibilidad de usarlo como ini
 | Aplicación | Instalar en | Descarga directa |
 | --- | --- | --- |
 | David Launcher TV 0.5.0 | Televisor o TV box Android | [david-launcher-tv.apk](https://github.com/DavidCevallos15/david-launcher-tv/releases/download/v0.5.0-preview.1/david-launcher-tv.apk) |
-| TV Remote 0.1.0 — opcional | Celular Android | [tv-remote.apk](https://github.com/DavidCevallos15/david-launcher-tv/releases/download/v0.5.0-preview.1/tv-remote.apk) |
+| TV Remote — opcional | Celular Android | [tv-remote.apk](https://github.com/DavidCevallos15/david-launcher-tv/releases/download/v0.5.0-preview.1/tv-remote.apk) |
 
 Esta primera descarga es una **vista previa con APK de depuración**, procedente de una compilación que superó las pruebas automáticas. Consulta las notas de la versión antes de actualizar una instalación existente. No es una publicación en Google Play.
 

@@ -22,6 +22,8 @@ class RemoteSession private constructor(
         fun onVolume(level: Int, max: Int, muted: Boolean) {}
         fun onCurrentApp(packageName: String) {}
         fun onImeField(active: Boolean) {}
+        /** El TV reportó el texto de su campo enfocado (al enfocarlo o tras una edición). */
+        fun onFieldText(text: String) {}
         fun onDisconnected(error: Throwable?) {}
         /** Una línea por mensaje (salvo ping/pong y audio) para el panel de diagnóstico. */
         fun onLog(line: String) {}
@@ -35,6 +37,13 @@ class RemoteSession private constructor(
     @Volatile var features = 0; private set
     @Volatile private var imeCounter = 0
     @Volatile private var fieldCounter = 0
+    /**
+     * Contadores de campo vistos, el más reciente primero. El TV los reparte entre varios mensajes
+     * (ime_batch_edit, ime_key_inject.app_info, text_field_status) y no siempre el mismo es el vigente
+     * al enfocar un campo nuevo; una edición con contador equivocado el TV la ignora sin efecto
+     * ("Ignoring edit, the input field has changed from 1 to 78"), así que se envía con cada candidato.
+     */
+    private val fieldCandidates = ArrayDeque<Int>()
     @Volatile var imeActive = false; private set
     /** Texto actual del campo enfocado en el TV, según lo último que el TV reportó. */
     @Volatile var fieldText = ""; private set
@@ -86,23 +95,41 @@ class RemoteSession private constructor(
         // ime_key_inject / ime_show_request traen otros contadores (p. ej. 1) y usarlos hace que el TV
         // descarte el texto: "Ignoring edit, the input field has changed from 1 to 71".
         msg.message(Remote.IME_KEY_INJECT)?.let { ime ->
-            ime.message(1)?.string(12)?.takeIf { it.isNotEmpty() }?.let(listener::onCurrentApp)
-            ime.message(2)?.let { field -> fieldText = field.string(2); setIme(true) }
+            ime.message(1)?.let { app ->
+                app.string(12).takeIf { it.isNotEmpty() }?.let(listener::onCurrentApp)
+                if (app.has(1)) candidate(app.int(1))
+            }
+            ime.message(2)?.let { field ->
+                if (field.has(1)) candidate(field.int(1))
+                reportText(field.string(2)); setIme(true)
+            }
             return
         }
         msg.message(Remote.IME_BATCH_EDIT)?.let { edit ->
             imeCounter = edit.int(1); fieldCounter = edit.int(2)
-            edit.message(3)?.message(2)?.let { fieldText = it.string(3) }
+            candidate(fieldCounter) // el de batch_edit es el más fiable: queda primero
+            edit.message(3)?.message(2)?.let { reportText(it.string(3)) }
             setIme(true); return
         }
         msg.message(Remote.IME_SHOW_REQUEST)?.let { req ->
             val status = req.message(2)
-            if (status != null) fieldText = status.string(2)
+            if (status != null) { if (status.has(1)) candidate(status.int(1)); reportText(status.string(2)) }
             setIme(status != null); return
         }
         msg.message(Remote.VOICE_BEGIN)?.let {
             voiceCallback?.invoke(it.int(1)); voiceCallback = null; return
         }
+    }
+
+    @Synchronized private fun candidate(counter: Int) {
+        fieldCandidates.remove(counter)
+        fieldCandidates.addFirst(counter)
+        while (fieldCandidates.size > 4) fieldCandidates.removeLast()
+    }
+
+    private fun reportText(text: String) {
+        fieldText = text
+        listener.onFieldText(text)
     }
 
     private fun setIme(active: Boolean) {
@@ -123,17 +150,8 @@ class RemoteSession private constructor(
      *  - AUTO: IME si el TV anunció su campo, si no KEYS.
      */
     fun type(value: String, mode: WriteMode = WriteMode.AUTO): TypeMode {
-        val useIme = when (mode) {
-            WriteMode.IME -> true
-            WriteMode.KEYS -> false
-            // Si el TV soporta IME se usa siempre: es lo que entienden YouTube, Spotify, Play Store…
-            // Muchos TV (p. ej. TCL) rechazan las letras como teclas ("unknown keycode").
-            WriteMode.AUTO -> features and Remote.F_IME != 0
-        }
-        if (useIme) {
-            val full = fieldText + value
-            fieldText = full
-            sendLogged(Remote.text(full, imeCounter, fieldCounter))
+        if (usesIme(mode)) {
+            setText(join(fieldText, value))
             return TypeMode.IME
         }
         val codes = TextKeys.toKeyCodes(value)
@@ -142,10 +160,26 @@ class RemoteSession private constructor(
         return TypeMode.KEYS
     }
 
-    /** Reemplaza el texto del campo del TV (IME). */
-    fun text(value: String) {
-        if (value.isNotEmpty()) { fieldText = value; sendLogged(Remote.text(value, imeCounter, fieldCounter)) }
+    /** IME si el TV lo soporta (o si se fuerza); teclas solo para TVs sin IME. */
+    fun usesIme(mode: WriteMode = WriteMode.AUTO) = when (mode) {
+        WriteMode.IME -> true
+        WriteMode.KEYS -> false
+        WriteMode.AUTO -> features and Remote.F_IME != 0
     }
+
+    /**
+     * Deja el campo del TV exactamente con [full] (espejo del campo del celular): escribir, corregir
+     * y borrar en el celular se refleja igual en el TV. Vacío = borrar todo.
+     */
+    fun setText(full: String) {
+        fieldText = full
+        val targets = synchronized(this) { fieldCandidates.toList() }.ifEmpty { listOf(fieldCounter) }
+        targets.forEach { c -> sendLogged(Remote.text(full, imeCounter, c)) }
+    }
+
+    /** Compatibilidad: reemplaza el texto del campo. */
+    fun text(value: String) = setText(value)
+
 
     /**
      * Abre una app. Prueba los formatos en orden: si el TV responde con error, envía el siguiente.
@@ -217,6 +251,13 @@ class RemoteSession private constructor(
     }
 
     companion object {
+        /** Une dos fragmentos con un solo espacio ("hola" + "mundo" → "hola mundo"). */
+        fun join(current: String, add: String): String = when {
+            current.isBlank() -> add.trim()
+            add.isBlank() -> current
+            else -> current.trimEnd() + " " + add.trim()
+        }
+
         const val PORT = 6466
         private const val VOICE_MIN = 8 * 1024
         private const val VOICE_MAX = 20 * 1024

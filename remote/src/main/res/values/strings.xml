@@ -13,7 +13,7 @@
     <string name="connecting">Conectando…</string>
     <string name="connected">Conectado</string>
     <string name="offline">Sin conexión · toca para reintentar</string>
-    <string name="type_hint">Escribe o dicta para el TV…</string>
+    <string name="type_hint">Lo que escribas aparece en el TV</string>
     <string name="change_tv">Cambiar de TV</string>
     <string name="listening">Escuchando… suelta para enviar</string>
     <string name="mic_denied">Sin permiso de micrófono: uso el dictado del celular</string>

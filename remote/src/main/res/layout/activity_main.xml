@@ -226,7 +226,7 @@
                 android:layout_weight="1"
                 android:background="@drawable/bg_input"
                 android:hint="@string/type_hint"
-                android:imeOptions="actionSend"
+                android:imeOptions="actionSearch"
                 android:importantForAutofill="no"
                 android:inputType="text|textCapSentences"
                 android:paddingStart="16dp"
@@ -235,7 +235,7 @@
                 android:textColorHint="@color/muted" />
 
             <ImageButton android:id="@+id/dictate" style="@style/RoundButton" android:layout_width="52dp" android:layout_height="52dp" android:layout_marginStart="8dp" android:padding="15dp" android:contentDescription="Dictar" android:src="@drawable/ic_mic" />
-            <ImageButton android:id="@+id/sendText" style="@style/RoundButton" android:layout_width="52dp" android:layout_height="52dp" android:layout_marginStart="8dp" android:background="@drawable/bg_mic" android:padding="15dp" android:contentDescription="Enviar al TV" android:src="@drawable/ic_send" />
+            <ImageButton android:id="@+id/sendText" style="@style/RoundButton" android:layout_width="52dp" android:layout_height="52dp" android:layout_marginStart="8dp" android:background="@drawable/bg_mic" android:padding="15dp" android:contentDescription="Buscar en el TV" android:src="@drawable/ic_search" />
         </LinearLayout>
 
         <LinearLayout

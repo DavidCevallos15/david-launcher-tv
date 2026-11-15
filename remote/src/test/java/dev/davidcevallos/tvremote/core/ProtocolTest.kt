@@ -86,4 +86,19 @@ class ProtocolTest {
         assertEquals("key {1: 19, 2: 3}", Remote.describe(Remote.key(Keys.DPAD_UP)))
         assertEquals("KEY IME APP_LINK", Remote.featureNames(Remote.F_KEY or Remote.F_IME or Remote.F_APP_LINK))
     }
+
+    @Test fun joinAddsExactlyOneSpace() {
+        assertEquals("hola mundo", RemoteSession.join("hola", "mundo"))
+        assertEquals("hola mundo", RemoteSession.join("hola ", " mundo "))
+        assertEquals("mundo", RemoteSession.join("", "mundo"))
+        assertEquals("hola", RemoteSession.join("hola", "  "))
+    }
+
+    @Test fun emptyTextClearsField() {
+        // Vacío = borrar todo: sin valor ni cursor negativo
+        val msg = ProtoMessage.parse(Remote.text("", 5, 9)).message(Remote.IME_BATCH_EDIT)!!
+        assertEquals(9, msg.int(2))
+        assertEquals("", msg.message(3)!!.message(2)!!.string(3))
+        assertEquals(0, msg.message(3)!!.message(2)!!.int(1))
+    }
 }

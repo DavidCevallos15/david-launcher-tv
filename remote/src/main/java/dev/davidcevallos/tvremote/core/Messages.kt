@@ -124,8 +124,9 @@ object Remote {
         .toByteArray()
 
     /** Texto vía IME (soporta Unicode: tildes, ñ, emojis). Mismo formato que la app oficial. */
+    /** Reemplaza el contenido del campo del TV por [text] (vacío = borrar todo). */
     fun text(text: String, imeCounter: Int, fieldCounter: Int): ByteArray {
-        val cursor = text.length - 1
+        val cursor = (text.length - 1).coerceAtLeast(0)
         return ProtoWriter().message(IME_BATCH_EDIT) {
             int(1, imeCounter)
             int(2, fieldCounter)

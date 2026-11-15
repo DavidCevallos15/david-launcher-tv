@@ -260,7 +260,11 @@ class MainActivity : Activity() {
 
         override fun onLog(line: String) = main.post { log(line) }.let { }
 
+        override fun onFieldText(text: String) = main.post { syncFieldFromTv(text) }.let { }
+
         override fun onImeField(active: Boolean) = main.post {
+            // El TV dejó el campo: el siguiente buscador empieza limpio en el celular también
+            if (!active && mirroring()) { syncingFromTv = true; typeField.text.clear(); syncingFromTv = false }
             imeActiveOnTv = active
             refreshModeLabel()
             if (active && typePanel.visibility != View.VISIBLE) openKeyboard()
@@ -444,11 +448,13 @@ class MainActivity : Activity() {
     private fun onDictated(text: String) {
         dictating = false
         typeField.setHint(R.string.type_hint)
-        if (dictationTarget == DICTATE_TO_FIELD) {
-            typeField.append(if (typeField.text.isEmpty()) text else " $text")
-            typeField.setSelection(typeField.text.length)
+        if (dictationTarget == DICTATE_TO_FIELD || typePanel.visibility == View.VISIBLE) {
+            // Al campo del celular (con su espacio); el espejo lo lleva al TV
+            val joined = RemoteSession.join(typeField.text.toString(), text)
+            typeField.setText(joined)
+            typeField.setSelection(joined.length)
         } else {
-            typeOnTv(text)
+            typeOnTv(text) // mic azul con el teclado cerrado: se agrega al campo del TV con espacio
         }
     }
 
@@ -531,21 +537,61 @@ class MainActivity : Activity() {
     // Teclado
     // ======================================================================
 
+    /** Evita que un texto que llega del TV dispare otro envío (eco). */
+    private var syncingFromTv = false
+    private var lastLocalEdit = 0L
+    private val pushMirror = Runnable { session?.setText(typeField.text.toString()) }
+
     private fun bindKeyboard() {
         findViewById<ImageButton>(R.id.sendText).setOnClickListener { submitTyped() }
         findViewById<ImageButton>(R.id.dictate).setOnClickListener {
             if (dictating) stopDictation() else startDictation(DICTATE_TO_FIELD)
         }
-        findViewById<ImageButton>(R.id.delKey).setOnClickListener { send(Keys.DEL) }
+        // ⌫ y ↵: en modo espejo el borrado se hace en el campo del celular y se refleja en el TV
+        findViewById<ImageButton>(R.id.delKey).setOnClickListener {
+            if (mirroring()) {
+                val t = typeField.text
+                if (t.isNotEmpty()) t.delete(t.length - 1, t.length)
+            } else send(Keys.DEL)
+        }
+        findViewById<ImageButton>(R.id.delKey).setOnLongClickListener {
+            if (mirroring()) typeField.text.clear()
+            true
+        }
         findViewById<ImageButton>(R.id.enterKey).setOnClickListener { send(Keys.ENTER) }
         findViewById<ImageButton>(R.id.closeType).setOnClickListener { closeKeyboard() }
         typeField.setOnEditorActionListener { _, action, _ ->
-            if (action == EditorInfo.IME_ACTION_SEND) { submitTyped(); true } else false
+            if (action == EditorInfo.IME_ACTION_SEND || action == EditorInfo.IME_ACTION_SEARCH) { submitTyped(); true } else false
         }
+        typeField.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+            override fun afterTextChanged(e: android.text.Editable?) {
+                if (syncingFromTv || !mirroring()) return
+                lastLocalEdit = android.os.SystemClock.uptimeMillis()
+                main.removeCallbacks(pushMirror)
+                main.postDelayed(pushMirror, 120) // agrupa ráfagas de teclas: un envío por pausa
+            }
+        })
+    }
+
+    /** Espejo en vivo: el campo del celular y el del TV son el mismo texto (requiere IME en el TV). */
+    private fun mirroring() = session?.usesIme(writeMode) == true
+
+    /** El TV cambió su campo (otro buscador, o se escribió con el control): copiarlo al celular. */
+    private fun syncFieldFromTv(text: String) {
+        if (typePanel.visibility != View.VISIBLE || !mirroring()) return
+        if (android.os.SystemClock.uptimeMillis() - lastLocalEdit < 1_500) return // el usuario está escribiendo
+        if (typeField.text.toString() == text) return
+        syncingFromTv = true
+        typeField.setText(text)
+        typeField.setSelection(text.length)
+        syncingFromTv = false
     }
 
     private fun openKeyboard() {
         typePanel.visibility = View.VISIBLE
+        session?.fieldText?.let { if (mirroring() && typeField.text.isEmpty()) syncFieldFromTv(it) }
         typeField.requestFocus()
         getSystemService(InputMethodManager::class.java).showSoftInput(typeField, InputMethodManager.SHOW_IMPLICIT)
     }
@@ -555,7 +601,14 @@ class MainActivity : Activity() {
         typePanel.visibility = View.GONE
     }
 
+    /** Buscar: en espejo el texto ya está en el TV, solo falta Enter. Sin IME, se teclea y se envía. */
     private fun submitTyped() {
+        if (mirroring()) {
+            main.removeCallbacks(pushMirror)
+            pushMirror.run()
+            main.postDelayed({ send(Keys.ENTER) }, 150)
+            return
+        }
         val text = typeField.text.toString()
         if (text.isBlank()) { send(Keys.ENTER); return }
         typeOnTv(text)
