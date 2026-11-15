@@ -112,6 +112,7 @@ class MainActivity : BaseActivity() {
             findViewById<SurfaceView>(R.id.wallVideo),
         )
         registerReceiver(screenOff, IntentFilter(Intent.ACTION_SCREEN_OFF))
+        SleepCleaner.register(this)
     }
 
     override fun onResume() {

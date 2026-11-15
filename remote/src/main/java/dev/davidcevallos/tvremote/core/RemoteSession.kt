@@ -82,12 +82,12 @@ class RemoteSession private constructor(
         msg.message(Remote.SET_VOLUME_LEVEL)?.let {
             listener.onVolume(it.int(7), it.int(6), it.bool(8)); return
         }
+        // Contadores IME: SOLO los de ime_batch_edit (lo que el TV considera el campo vigente).
+        // ime_key_inject / ime_show_request traen otros contadores (p. ej. 1) y usarlos hace que el TV
+        // descarte el texto: "Ignoring edit, the input field has changed from 1 to 71".
         msg.message(Remote.IME_KEY_INJECT)?.let { ime ->
-            ime.message(1)?.let { app ->
-                if (app.has(1)) imeCounter = app.int(1) // app_info.counter = contador IME vigente
-                app.string(12).takeIf { it.isNotEmpty() }?.let(listener::onCurrentApp)
-            }
-            ime.message(2)?.let { field -> fieldCounter = field.int(1); fieldText = field.string(2); setIme(true) }
+            ime.message(1)?.string(12)?.takeIf { it.isNotEmpty() }?.let(listener::onCurrentApp)
+            ime.message(2)?.let { field -> fieldText = field.string(2); setIme(true) }
             return
         }
         msg.message(Remote.IME_BATCH_EDIT)?.let { edit ->
@@ -97,7 +97,7 @@ class RemoteSession private constructor(
         }
         msg.message(Remote.IME_SHOW_REQUEST)?.let { req ->
             val status = req.message(2)
-            if (status != null) { fieldCounter = status.int(1); fieldText = status.string(2) }
+            if (status != null) fieldText = status.string(2)
             setIme(status != null); return
         }
         msg.message(Remote.VOICE_BEGIN)?.let {
@@ -126,7 +126,9 @@ class RemoteSession private constructor(
         val useIme = when (mode) {
             WriteMode.IME -> true
             WriteMode.KEYS -> false
-            WriteMode.AUTO -> imeActive && features and Remote.F_IME != 0
+            // Si el TV soporta IME se usa siempre: es lo que entienden YouTube, Spotify, Play Store…
+            // Muchos TV (p. ej. TCL) rechazan las letras como teclas ("unknown keycode").
+            WriteMode.AUTO -> features and Remote.F_IME != 0
         }
         if (useIme) {
             val full = fieldText + value

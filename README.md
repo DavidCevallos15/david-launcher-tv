@@ -37,6 +37,8 @@ No necesita root ni desbloquear el bootloader. La posibilidad de usarlo como ini
 
 ## Descargar e instalar
 
+**Lo más fácil:** abre la **[página de descarga](https://davidcevallos15.github.io/david-launcher-tv/)**. En el TV, con la app *Downloader*, escribe `davidcevallos15.github.io/david-launcher-tv/tv`; para el control remoto del celular, escanea el QR.
+
 **[Abrir la página de descargas →](https://github.com/DavidCevallos15/david-launcher-tv/releases/tag/v0.5.0-preview.1)**
 
 | Aplicación | Instalar en | Descarga directa |
@@ -77,6 +79,7 @@ El dispositivo documentado como probado es **TCL BeyondTV2 con Android TV 11**. 
 | Cambiar el fondo | **Fondos → ◀ ▶ → OK**; **Automático** elige uno distinto cada día |
 | Cambiar el tamaño de la interfaz | **Personalizar → Zoom de toda la interfaz** (70–130 %) o **Tamaño de las tarjetas** |
 | Controlar la música | Con el menú oculto, usa **◀ ▶ OK** sobre los controles multimedia |
+| Cerrar apps al apagar el TV | **Personalizar → Al apagar el TV**: *Cerrar apps y detener música* (por defecto) o *Predeterminado*. **Cerrar apps ahora** lo hace al momento |
 
 También puedes ocultar el menú automáticamente después de 10, 30 o 60 segundos. Las apps nuevas aparecen en **Apps** sin modificar el código.
 
@@ -100,6 +103,7 @@ TV Remote se conecta al servicio del televisor; no necesita que David Launcher T
 | Función | Qué utiliza |
 | --- | --- |
 | Clima | Consultas HTTPS a Open-Meteo. La ciudad automática consulta ipwho.is, con geojs.io como respaldo. Elegir una ciudad evita esas consultas de geolocalización, pero Open-Meteo sigue recibiendo la conexión y su IP de origen. |
+| Cerrar apps al apagar | Permiso normal *cerrar procesos en segundo plano* (se concede solo). Detiene la reproducción y cierra apps de usuario; no toca la entrada de TV, el teclado ni el control remoto. |
 | Música | El acceso a notificaciones permite consultar y controlar sesiones multimedia. El servicio actual no procesa el contenido de las notificaciones. Sin este permiso, el resto del launcher funciona. |
 | Voz del control móvil | Permiso de micrófono cuando se usa la función. El dictado depende del servicio de reconocimiento del celular y puede necesitar Internet. |
 | Emparejamiento del control | Identidad local cifrada con AndroidKeyStore y comprobación del certificado del TV después del emparejamiento. |

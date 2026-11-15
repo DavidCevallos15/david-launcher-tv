@@ -66,6 +66,10 @@ object Theme {
 
     val HOUR_FORMATS = listOf(Option("auto", "Según el TV"), Option("24", "24 horas"), Option("12", "12 horas"))
 
+    val ON_SLEEP = listOf(
+        Option("close", "Cerrar apps y detener música"), Option("default", "Predeterminado (no hacer nada)"),
+    )
+
     val AUTO_HIDE = listOf(
         Option("0", "Nunca"), Option("10", "10 segundos"), Option("30", "30 segundos"), Option("60", "1 minuto"),
     )

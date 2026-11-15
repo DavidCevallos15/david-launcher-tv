@@ -125,4 +125,9 @@ object MediaHub {
     fun stop() {
         current?.transportControls?.stop()
     }
+
+    /** Detiene todas las sesiones activas (al apagar el TV). Requiere el acceso a notificaciones. */
+    fun stopAll() {
+        controllers.forEach { c -> runCatching { c.transportControls.stop() } }
+    }
 }

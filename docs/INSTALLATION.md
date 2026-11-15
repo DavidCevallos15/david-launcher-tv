@@ -2,6 +2,8 @@
 
 [← Volver al README](../README.md)
 
+> **¿Lo instalas para alguien que no es técnico?** Usa la **[página de descarga](https://davidcevallos15.github.io/david-launcher-tv/)**: en el TV basta la app *Downloader* y escribir `davidcevallos15.github.io/david-launcher-tv/tv`; el control remoto del celular se instala escaneando un QR.
+
 No necesitas compilar el proyecto ni tener root. Puedes descargar el APK, copiarlo al TV e instalarlo como una aplicación. **Usarlo como pantalla de inicio predeterminada es un paso separado** y depende de las restricciones del fabricante.
 
 ## 1. Comprueba tu dispositivo

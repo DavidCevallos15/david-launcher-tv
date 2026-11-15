@@ -139,6 +139,11 @@ class LauncherPrefs(context: Context) {
         get() = sp.getBoolean(KEY_SCREEN_OFF, false)
         set(value) = put(KEY_SCREEN_OFF, value)
 
+    /** Al apagar el TV: detener la música y cerrar las apps en segundo plano (activado por defecto). */
+    var closeAppsOnSleep: Boolean
+        get() = sp.getBoolean(KEY_CLOSE_ON_SLEEP, true)
+        set(value) = sp.edit().putBoolean(KEY_CLOSE_ON_SLEEP, value).apply()
+
     /** Segundos sin tocar el control para ocultar el menú solo; 0 = nunca. */
     var autoHideSeconds: Int
         get() = sp.getInt(KEY_AUTO_HIDE, 0)
@@ -186,5 +191,6 @@ class LauncherPrefs(context: Context) {
         const val KEY_GREET_AT = "greet_at"
         const val KEY_GREET_BOOT = "greet_boot"
         const val KEY_SCREEN_OFF = "screen_off"
+        const val KEY_CLOSE_ON_SLEEP = "close_on_sleep"
     }
 }

@@ -174,6 +174,13 @@ def run_remote(conn: ssl.SSLSocket):
 
     # El TV avisa que hay un campo de texto enfocado
     f.send(rm.RemoteMessage(remote_ime_batch_edit=rm.RemoteImeBatchEdit(ime_counter=5, field_counter=9)))
+    # Como el TCL real: después llegan ime_key_inject / ime_show_request con OTROS contadores (1).
+    # El cliente no debe usarlos ("Ignoring edit, the input field has changed from 1 to 71").
+    f.send(rm.RemoteMessage(remote_ime_key_inject=rm.RemoteImeKeyInject(
+        app_info=rm.RemoteAppInfo(counter=1, app_package="com.spotify.tv.android"),
+        text_field_status=rm.RemoteTextFieldStatus(counter_field=1, value=""))))
+    f.send(rm.RemoteMessage(remote_ime_show_request=rm.RemoteImeShowRequest(
+        remote_text_field_status=rm.RemoteTextFieldStatus(counter_field=1, value=""))))
     f.send(rm.RemoteMessage(remote_set_volume_level=rm.RemoteSetVolumeLevel(volume_level=12, volume_max=100)))
 
     expected_keys = [(19, 3), (23, 3), (4, 3), (24, 3), (23, 1), (23, 2)]

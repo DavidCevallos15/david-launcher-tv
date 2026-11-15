@@ -10,5 +10,6 @@ import android.service.notification.NotificationListenerService
 class MediaListenerService : NotificationListenerService() {
     override fun onListenerConnected() {
         MediaHub.start(applicationContext)
+        SleepCleaner.register(applicationContext) // este servicio vive aunque el launcher esté en segundo plano
     }
 }

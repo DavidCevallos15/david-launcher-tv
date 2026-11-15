@@ -3,6 +3,8 @@
 
     <!-- Solo para el clima (Open-Meteo); sin red el launcher funciona igual y muestra el último clima guardado -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Cerrar apps en segundo plano al apagar el TV (permiso normal, se concede solo) -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
 
 
 

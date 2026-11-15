@@ -138,6 +138,14 @@ class CustomizeActivity : BaseActivity() {
             "Ocultar el menú solo", Theme.AUTO_HIDE,
             { prefs.autoHideSeconds.toString() }, { prefs.autoHideSeconds = it.toInt() },
         )
+        choice(
+            "Al apagar el TV", Theme.ON_SLEEP,
+            { if (prefs.closeAppsOnSleep) "close" else "default" }, { prefs.closeAppsOnSleep = it == "close" },
+        )
+        action("Cerrar apps ahora", "OK") {
+            SleepCleaner.run(this, force = true)
+            android.widget.Toast.makeText(this, "Apps en segundo plano cerradas", android.widget.Toast.LENGTH_SHORT).show()
+        }
         action("Restablecer estilo", "OK") {
             prefs.resetStyle()
             header.applyStyle()
