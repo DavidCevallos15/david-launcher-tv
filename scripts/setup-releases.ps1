@@ -56,10 +56,11 @@ No la subas al repositorio.
     Write-Host "Llave creada en $Dir" -ForegroundColor Green
 }
 
-[Convert]::ToBase64String([IO.File]::ReadAllBytes($store)) | gh secret set RELEASE_KEYSTORE_BASE64 -R $Repo
-$pass  | gh secret set RELEASE_KEYSTORE_PASSWORD -R $Repo
-$pass  | gh secret set RELEASE_KEY_PASSWORD -R $Repo
-$alias | gh secret set RELEASE_KEY_ALIAS -R $Repo
+# --body en vez de pipe: en Windows PowerShell 5.1 el pipe a un .exe agrega "\r\n" y corrompe el base64/claves.
+gh secret set RELEASE_KEYSTORE_BASE64 -R $Repo --body ([Convert]::ToBase64String([IO.File]::ReadAllBytes($store)))
+gh secret set RELEASE_KEYSTORE_PASSWORD -R $Repo --body $pass
+gh secret set RELEASE_KEY_PASSWORD -R $Repo --body $pass
+gh secret set RELEASE_KEY_ALIAS -R $Repo --body $alias
 Write-Host "`nSecretos guardados en $Repo :" -ForegroundColor Green
 gh secret list -R $Repo
 
