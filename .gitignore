@@ -11,7 +11,9 @@ local.properties
 # Firma: nunca al repo
 *.jks
 *.keystore
+*.p12
 keystore.properties
+firma/
 
 # Datos personales / locales
 wallpapers/
