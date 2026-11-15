@@ -11,8 +11,8 @@ android {
         applicationId = "dev.davidcevallos.tvremote"
         minSdk = 26
         targetSdk = 34
-        versionCode = 3
-        versionName = "0.2.1"
+        versionCode = 4
+        versionName = "0.3.0"
     }
 
     // Firma de release estable (la misma en cada versión, para que las actualizaciones se instalen encima).

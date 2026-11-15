@@ -1,9 +1,11 @@
 package dev.davidcevallos.tvremote.ui
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognitionListener
+import android.speech.RecognitionService
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import java.util.Locale
@@ -11,16 +13,22 @@ import java.util.Locale
 /**
  * Dictado en el celular con SpeechRecognizer (sin diálogo): pulsar para hablar, ver la
  * transcripción en vivo y entregar el texto final al soltar. El reconocimiento lo hace el
- * servicio de voz del celular (Google), en el idioma del sistema.
+ * servicio de Google cuando está instalado: el reconocedor por defecto de algunos fabricantes
+ * (p. ej. Samsung) ignora EXTRA_LANGUAGE y transcribe en inglés.
  */
 class Dictation(
     context: Context,
+    /** Etiqueta BCP-47 del idioma a reconocer (p. ej. "es-US"). Se lee en cada start(). */
+    private val language: () -> String,
     private val onPartial: (String) -> Unit,
     private val onFinal: (String) -> Unit,
     private val onError: (String) -> Unit,
 ) {
-    private val recognizer: SpeechRecognizer? =
-        if (SpeechRecognizer.isRecognitionAvailable(context)) SpeechRecognizer.createSpeechRecognizer(context) else null
+    private val recognizer: SpeechRecognizer? = when {
+        !SpeechRecognizer.isRecognitionAvailable(context) -> null
+        else -> googleService(context)?.let { SpeechRecognizer.createSpeechRecognizer(context, it) }
+            ?: SpeechRecognizer.createSpeechRecognizer(context)
+    }
 
     val available get() = recognizer != null
     private var lastPartial = ""
@@ -73,10 +81,13 @@ class Dictation(
         lastPartial = ""
         delivered = false
         r.cancel()
+        val lang = language()
         r.startListening(
             Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
+                .putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
+                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, lang)
+                .putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, true)
                 .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
                 // Mientras mantiene presionado, no cortar por silencios cortos
@@ -89,4 +100,23 @@ class Dictation(
     fun stop() = recognizer?.stopListening()
 
     fun destroy() = recognizer?.destroy()
+
+    companion object {
+        /** Idiomas del dictado: etiqueta para el reconocedor → nombre corto para la interfaz. */
+        val LANGUAGES = linkedMapOf("es-US" to "ES", "en-US" to "EN")
+
+        fun defaultLanguage(): String = if (Locale.getDefault().language == "en") "en-US" else "es-US"
+
+        private val GOOGLE_PACKAGES = listOf("com.google.android.googlequicksearchbox", "com.google.android.tts")
+
+        /** Servicio de reconocimiento de Google, si está instalado (respeta el idioma pedido). */
+        fun googleService(context: Context): ComponentName? {
+            val services = context.packageManager
+                .queryIntentServices(Intent(RecognitionService.SERVICE_INTERFACE), 0)
+                .mapNotNull { it.serviceInfo }
+            return GOOGLE_PACKAGES.firstNotNullOfOrNull { pkg ->
+                services.firstOrNull { it.packageName == pkg }?.let { ComponentName(it.packageName, it.name) }
+            }
+        }
+    }
 }

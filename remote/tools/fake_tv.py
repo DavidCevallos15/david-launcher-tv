@@ -172,15 +172,13 @@ def run_remote(conn: ssl.SSLSocket):
     m = f.recv(rm.RemoteMessage)
     check(m.HasField("remote_ping_response") and m.remote_ping_response.val1 == 7, "remote: ping/pong")
 
-    # El TV avisa que hay un campo de texto enfocado
-    f.send(rm.RemoteMessage(remote_ime_batch_edit=rm.RemoteImeBatchEdit(ime_counter=5, field_counter=9)))
-    # Como el TCL real: después llegan ime_key_inject / ime_show_request con OTROS contadores (1).
-    # El cliente no debe usarlos ("Ignoring edit, the input field has changed from 1 to 71").
+    # Campo enfocado con teclado abierto, como lo manda el TCL real (medido con logcat):
+    # ime_counter vigente = app_info.counter (123), campo = text_field_status.counter_field (100),
+    # y al lado un ime_batch_edit {ime_counter: 1} que es un señuelo ("from 1 to 123").
     f.send(rm.RemoteMessage(remote_ime_key_inject=rm.RemoteImeKeyInject(
-        app_info=rm.RemoteAppInfo(counter=1, app_package="com.spotify.tv.android"),
-        text_field_status=rm.RemoteTextFieldStatus(counter_field=1, value=""))))
-    f.send(rm.RemoteMessage(remote_ime_show_request=rm.RemoteImeShowRequest(
-        remote_text_field_status=rm.RemoteTextFieldStatus(counter_field=1, value=""))))
+        app_info=rm.RemoteAppInfo(counter=123, app_package="com.spotify.tv.android"),
+        text_field_status=rm.RemoteTextFieldStatus(counter_field=100, value=""))))
+    f.send(rm.RemoteMessage(remote_ime_batch_edit=rm.RemoteImeBatchEdit(ime_counter=1)))
     f.send(rm.RemoteMessage(remote_set_volume_level=rm.RemoteSetVolumeLevel(volume_level=12, volume_max=100)))
 
     expected_keys = [(19, 3), (23, 3), (4, 3), (24, 3), (23, 1), (23, 2)]
@@ -190,18 +188,23 @@ def run_remote(conn: ssl.SSLSocket):
             and m.remote_key_inject.direction == direction
         check(ok, f"remote: key {code}/{direction} → recibido {m.remote_key_inject.key_code}/{m.remote_key_inject.direction}")
 
-    # El cliente puede mandar la edición con varios contadores candidatos; el TV real ignora
-    # los que no coinciden. Debe llegar al menos una con el campo vigente (9) y el texto completo.
-    edits, m = [], f.recv(rm.RemoteMessage)
-    while m.HasField("remote_ime_batch_edit") and len(edits) < 6:
-        edits.append(m.remote_ime_batch_edit)
+    # Dos textos seguidos ("Canción" y luego el completo). El TV real rechaza una edición con
+    # contadores viejos, así que el cliente debe esperar el eco (counter_field nuevo) antes de la 2.ª.
+    field, tv_text = 100, ""
+    for want in ["Canción", "Canción ñandú 🎬"]:
         m = f.recv(rm.RemoteMessage)
-    want = "Canción ñandú 🎬"
-    hit = [be for be in edits if be.ime_counter == 5 and be.field_counter == 9]
-    ok = bool(hit) and hit[0].edit_info[0].insert == 1 and hit[0].edit_info[0].text_field_status.value == want \
-        and hit[0].edit_info[0].text_field_status.start == len(want.encode("utf-16-le")) // 2 - 1
-    check(ok, f"remote: texto Unicode vía IME al campo vigente ({len(edits)} envíos, campos {[e.field_counter for e in edits]})")
-    check(len(edits) <= 4, "remote: a lo sumo 4 candidatos por edición")
+        be = m.remote_ime_batch_edit
+        ok = m.HasField("remote_ime_batch_edit") and be.ime_counter == 123 and be.field_counter == field
+        e = be.edit_info[0].text_field_status if ok and be.edit_info else None
+        ok = ok and e is not None and be.edit_info[0].insert == 1 and e.start == 0 \
+            and e.end >= len(tv_text.encode("utf-8")) and e.value == want
+        check(ok, f"remote: IME reemplaza el campo con '{want}' (ime={be.ime_counter} campo={be.field_counter}/{field} "
+                  f"rango={e.start if e else '-'}..{e.end if e else '-'} valor={e.value if e else '-'!r})")
+        time.sleep(0.05)
+        field, tv_text = field + 1, want
+        f.send(rm.RemoteMessage(remote_ime_show_request=rm.RemoteImeShowRequest(
+            remote_text_field_status=rm.RemoteTextFieldStatus(counter_field=field, value=tv_text))))
+    m = f.recv(rm.RemoteMessage)
 
     check(m.remote_app_link_launch_request.app_link == "market://launch?id=com.netflix.ninja",
           f"remote: app link → {m.remote_app_link_launch_request.app_link}")

@@ -123,23 +123,23 @@ object Remote {
         .message(KEY_INJECT) { int(1, keyCode); int(2, direction) }
         .toByteArray()
 
-    /** Texto vía IME (soporta Unicode: tildes, ñ, emojis). Mismo formato que la app oficial. */
-    /** Reemplaza el contenido del campo del TV por [text] (vacío = borrar todo). */
-    fun text(text: String, imeCounter: Int, fieldCounter: Int): ByteArray {
-        val cursor = (text.length - 1).coerceAtLeast(0)
-        return ProtoWriter().message(IME_BATCH_EDIT) {
+    /**
+     * Texto vía IME (Unicode: tildes, ñ, emojis). Reemplaza el rango [0, replaceEnd) del campo (bytes UTF-8 del texto que el TV reportó) por [text].
+     * Con replaceEnd = largo actual, el campo queda exactamente con [text]; el TV recorta excesos.
+     */
+    fun text(text: String, imeCounter: Int, fieldCounter: Int, replaceEnd: Int = 0): ByteArray =
+        ProtoWriter().message(IME_BATCH_EDIT) {
             int(1, imeCounter)
             int(2, fieldCounter)
             message(3) {                  // edit_info (repeated, uno solo)
                 int(1, 1)                 // insert
-                message(2) {              // RemoteImeObject
-                    int(1, cursor)
-                    int(2, cursor)
+                message(2) {              // RemoteImeObject: start, end, value
+                    int(1, 0)
+                    int(2, replaceEnd)
                     string(3, text)
                 }
             }
         }.toByteArray()
-    }
 
     fun appLink(link: String) = ProtoWriter().message(APP_LINK_LAUNCH) { string(1, link) }.toByteArray()
 

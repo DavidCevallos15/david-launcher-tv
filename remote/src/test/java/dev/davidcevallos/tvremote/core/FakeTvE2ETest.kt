@@ -61,12 +61,14 @@ class FakeTvE2ETest {
         val ready = CountDownLatch(1)
         val ime = CountDownLatch(1)
         val closed = CountDownLatch(1)
+        val typed = CountDownLatch(1)
         var model = ""
         var volume = -1
         val session = RemoteSession.connect(host, me, pinned, object : RemoteSession.Listener {
             override fun onReady(tvModel: String, features: Int) { model = tvModel; ready.countDown() }
             override fun onVolume(level: Int, max: Int, muted: Boolean) { volume = level }
             override fun onImeField(active: Boolean) { if (active) ime.countDown() }
+            override fun onFieldText(text: String) { if (text == "Canción ñandú 🎬") typed.countDown() }
             override fun onDisconnected(error: Throwable?) { closed.countDown() }
         }, port = 16466)
         assertTrue(ready.await(5, TimeUnit.SECONDS))
@@ -81,7 +83,9 @@ class FakeTvE2ETest {
         session.key(Keys.VOLUME_UP)
         session.key(Keys.DPAD_CENTER, Remote.START_LONG)
         session.key(Keys.DPAD_CENTER, Remote.END_LONG)
-        session.text("Canción ñandú 🎬")
+        session.setText("Canción")
+        session.setText("Canción ñandú 🎬") // sin esperar: la sesión debe esperar el eco del TV
+        assertTrue("el TV confirmó el texto final", typed.await(3, TimeUnit.SECONDS))
         session.launch("com.netflix.ninja")
 
         val voice = CountDownLatch(1)

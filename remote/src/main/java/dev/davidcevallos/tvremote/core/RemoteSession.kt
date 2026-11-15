@@ -2,6 +2,7 @@ package dev.davidcevallos.tvremote.core
 
 import java.io.Closeable
 import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -24,6 +25,8 @@ class RemoteSession private constructor(
         fun onImeField(active: Boolean) {}
         /** El TV reportó el texto de su campo enfocado (al enfocarlo o tras una edición). */
         fun onFieldText(text: String) {}
+        /** Hay texto esperando: el TV todavía no tiene un campo con su teclado abierto. */
+        fun onTextQueued() {}
         fun onDisconnected(error: Throwable?) {}
         /** Una línea por mensaje (salvo ping/pong y audio) para el panel de diagnóstico. */
         fun onLog(line: String) {}
@@ -31,21 +34,36 @@ class RemoteSession private constructor(
 
     enum class WriteMode { AUTO, IME, KEYS }
 
-    private val writer = Executors.newSingleThreadExecutor { r -> Thread(r, "tv-writer").apply { isDaemon = true } }
+    private val writer: ScheduledExecutorService =
+        Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "tv-writer").apply { isDaemon = true } }
     private val closed = AtomicBoolean(false)
 
     @Volatile var features = 0; private set
-    @Volatile private var imeCounter = 0
-    @Volatile private var fieldCounter = 0
-    /**
-     * Contadores de campo vistos, el más reciente primero. El TV los reparte entre varios mensajes
-     * (ime_batch_edit, ime_key_inject.app_info, text_field_status) y no siempre el mismo es el vigente
-     * al enfocar un campo nuevo; una edición con contador equivocado el TV la ignora sin efecto
-     * ("Ignoring edit, the input field has changed from 1 to 78"), así que se envía con cada candidato.
+
+    /*
+     * Modelo IME medido en el TCL BeyondTV2 (Android TV 11, Remote Service 7.00):
+     *  - ime_counter  = ime_key_inject.app_info.counter (p. ej. 123). El ime_batch_edit {ime_counter: 1}
+     *    que llega al lado es un señuelo: usarlo → "Ignoring edit, the input field has changed from 1 to 123".
+     *  - field_counter = text_field_status.counter_field; SUBE con cada edición y el TV confirma el nuevo
+     *    en ime_show_request (~10 ms). Una edición con un contador viejo se rechaza o se re-basa (duplica).
+     *  - edit_info.start/end = rango a reemplazar (bytes UTF-8, el TV lo recorta): 0..fin = reemplazar todo.
+     *  - Sin teclado abierto en el TV solo llega ime_key_inject {app_info {app_package}}: no hay campo.
+     * Por eso: una edición en vuelo a la vez, se espera el eco y se envía solo el último texto pedido.
      */
-    private val fieldCandidates = ArrayDeque<Int>()
+    private val imeLock = Any()
+    private var imeCounter = NONE
+    private var fieldCounter = NONE
+    /** Texto del campo según el último reporte del TV. */
+    private var tvText = ""
+    /** Último texto pedido que aún no se envió (null = nada pendiente). */
+    private var desired: String? = null
+    private var desiredAt = 0L
+    private var inFlight = false
+    private var editSeq = 0
+    private var retried = false
+
     @Volatile var imeActive = false; private set
-    /** Texto actual del campo enfocado en el TV, según lo último que el TV reportó. */
+    /** Texto del campo del TV: lo que el usuario pidió, o lo último que reportó el TV. */
     @Volatile var fieldText = ""; private set
     @Volatile var tvFeatures = 0; private set
     @Volatile private var pendingLinks: List<String> = emptyList()
@@ -91,45 +109,74 @@ class RemoteSession private constructor(
         msg.message(Remote.SET_VOLUME_LEVEL)?.let {
             listener.onVolume(it.int(7), it.int(6), it.bool(8)); return
         }
-        // Contadores IME: SOLO los de ime_batch_edit (lo que el TV considera el campo vigente).
-        // ime_key_inject / ime_show_request traen otros contadores (p. ej. 1) y usarlos hace que el TV
-        // descarte el texto: "Ignoring edit, the input field has changed from 1 to 71".
         msg.message(Remote.IME_KEY_INJECT)?.let { ime ->
-            ime.message(1)?.let { app ->
-                app.string(12).takeIf { it.isNotEmpty() }?.let(listener::onCurrentApp)
-                if (app.has(1)) candidate(app.int(1))
+            val app = ime.message(1)
+            val field = ime.message(2)
+            app?.string(12)?.takeIf { it.isNotEmpty() }?.let(listener::onCurrentApp)
+            val hasField = app?.has(1) == true || field != null
+            synchronized(imeLock) {
+                if (!hasField) {
+                    // Teclado del TV cerrado: no hay a dónde escribir
+                    imeCounter = NONE; fieldCounter = NONE; inFlight = false
+                } else {
+                    if (app?.has(1) == true) imeCounter = app.int(1)
+                    if (field != null && field.has(1)) { fieldCounter = field.int(1); tvText = field.string(2) }
+                }
             }
-            ime.message(2)?.let { field ->
-                if (field.has(1)) candidate(field.int(1))
-                reportText(field.string(2)); setIme(true)
-            }
-            return
+            if (!hasField) { setIme(false); return }
+            if (field != null) reportText(field.string(2))
+            setIme(true); pump(); return
         }
-        msg.message(Remote.IME_BATCH_EDIT)?.let { edit ->
-            imeCounter = edit.int(1); fieldCounter = edit.int(2)
-            candidate(fieldCounter) // el de batch_edit es el más fiable: queda primero
-            edit.message(3)?.message(2)?.let { reportText(it.string(3)) }
-            setIme(true); return
-        }
+        msg.message(Remote.IME_BATCH_EDIT)?.let { return } // señuelo del TV (ver arriba): no trae el campo vigente
         msg.message(Remote.IME_SHOW_REQUEST)?.let { req ->
-            val status = req.message(2)
-            if (status != null) { if (status.has(1)) candidate(status.int(1)); reportText(status.string(2)) }
-            setIme(status != null); return
+            val status = req.message(2) ?: return
+            val text = status.string(2)
+            synchronized(imeLock) {
+                if (status.has(1)) fieldCounter = status.int(1)
+                tvText = text
+                inFlight = false // eco de nuestra edición (o el TV cambió el campo)
+            }
+            reportText(text)
+            if (hasTvField) setIme(true)
+            pump(); return
         }
         msg.message(Remote.VOICE_BEGIN)?.let {
             voiceCallback?.invoke(it.int(1)); voiceCallback = null; return
         }
     }
 
-    @Synchronized private fun candidate(counter: Int) {
-        fieldCandidates.remove(counter)
-        fieldCandidates.addFirst(counter)
-        while (fieldCandidates.size > 4) fieldCandidates.removeLast()
+    private fun reportText(text: String) {
+        if (synchronized(imeLock) { desired == null }) fieldText = text
+        listener.onFieldText(text)
     }
 
-    private fun reportText(text: String) {
-        fieldText = text
-        listener.onFieldText(text)
+    /** Envía el texto pendiente si hay campo y nada en vuelo. Una sola edición a la vez. */
+    private fun pump() {
+        val edit = synchronized(imeLock) {
+            val want = desired ?: return
+            if (System.currentTimeMillis() - desiredAt > QUEUE_TTL_MS) { desired = null; return } // ya no aplica
+            if (inFlight || imeCounter == NONE || fieldCounter == NONE) return
+            desired = null
+            if (want == tvText) return
+            inFlight = true
+            val seq = ++editSeq
+            val bytes = Remote.text(want, imeCounter, fieldCounter, utf8Len(tvText))
+            writer.schedule({ onEditTimeout(seq, want) }, ECHO_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            bytes
+        }
+        sendLogged(edit)
+    }
+
+    /** Sin eco: el campo cambió o el TV la descartó. Un reintento con los contadores actuales. */
+    private fun onEditTimeout(seq: Int, text: String) {
+        synchronized(imeLock) {
+            if (!inFlight || seq != editSeq) return
+            inFlight = false
+            if (retried) { retried = false; listener.onLog("⚠ el TV no confirmó el texto"); return }
+            retried = true
+            if (desired == null) { desired = text; desiredAt = System.currentTimeMillis() }
+        }
+        pump()
     }
 
     private fun setIme(active: Boolean) {
@@ -169,13 +216,22 @@ class RemoteSession private constructor(
 
     /**
      * Deja el campo del TV exactamente con [full] (espejo del campo del celular): escribir, corregir
-     * y borrar en el celular se refleja igual en el TV. Vacío = borrar todo.
+     * y borrar en el celular se refleja igual en el TV. Vacío = borrar todo. Se puede llamar en cada
+     * tecla: si hay una edición en vuelo, solo se guarda el último texto y sale al llegar el eco.
+     * Si el TV aún no tiene un campo con teclado, el texto espera (hasta 30 s) y sale al abrirse.
      */
     fun setText(full: String) {
         fieldText = full
-        val targets = synchronized(this) { fieldCandidates.toList() }.ifEmpty { listOf(fieldCounter) }
-        targets.forEach { c -> sendLogged(Remote.text(full, imeCounter, c)) }
+        val waiting = synchronized(imeLock) {
+            desired = full; desiredAt = System.currentTimeMillis(); retried = false
+            imeCounter == NONE || fieldCounter == NONE
+        }
+        if (waiting) { listener.onLog("⏳ texto en espera: el TV no tiene un campo abierto"); listener.onTextQueued() }
+        pump()
     }
+
+    /** true si el TV tiene ahora un campo con su teclado abierto. */
+    val hasTvField get() = synchronized(imeLock) { imeCounter != NONE && fieldCounter != NONE }
 
     /** Compatibilidad: reemplaza el texto del campo. */
     fun text(value: String) = setText(value)
@@ -258,6 +314,11 @@ class RemoteSession private constructor(
             else -> current.trimEnd() + " " + add.trim()
         }
 
+        private fun utf8Len(s: String) = s.toByteArray(Charsets.UTF_8).size
+
+        private const val NONE = Int.MIN_VALUE
+        private const val ECHO_TIMEOUT_MS = 700L
+        private const val QUEUE_TTL_MS = 30_000L
         const val PORT = 6466
         private const val VOICE_MIN = 8 * 1024
         private const val VOICE_MAX = 20 * 1024

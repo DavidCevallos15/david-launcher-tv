@@ -38,6 +38,8 @@ Sin cambiar de teclado, en el panel de teclado toca **Modo** para usar *Teclas* 
 
 Comprueba que ambos dispositivos están en la misma red, sin aislamiento de clientes o red de invitados. Prueba la IP manual y verifica que Android TV Remote Service esté habilitado en el TV. El descubrimiento usa mDNS. No se garantiza compatibilidad con Fire TV ni con televisores sin este servicio.
 
-El dictado utiliza el servicio de reconocimiento de voz del celular y puede necesitar Internet. Concede el micrófono cuando la app lo solicite. Los accesos a aplicaciones dependen de que estén instaladas y de las funciones anunciadas por el TV.
+El dictado usa el reconocedor de Google cuando está instalado y escribe **en vivo**: el texto aparece en el TV mientras hablas. Por defecto reconoce **español**; mantén presionado el mic del panel de teclado para cambiar entre español e inglés. Puede necesitar Internet.
+
+Si escribes antes de que el TV abra su teclado (por ejemplo, el buscador de Spotify enfocado pero sin teclado en pantalla), el texto queda en espera hasta 30 s: pulsa **OK** sobre el campo del TV y se envía solo. Concede el micrófono cuando la app lo solicite. Los accesos a aplicaciones dependen de que estén instaladas y de las funciones anunciadas por el TV.
 
 [Pruebas del protocolo y desarrollo](DEVELOPMENT.md#pruebas).

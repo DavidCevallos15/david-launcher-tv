@@ -262,7 +262,14 @@ class MainActivity : Activity() {
 
         override fun onFieldText(text: String) = main.post { syncFieldFromTv(text) }.let { }
 
+        override fun onTextQueued() = main.post {
+            if (!textQueued) Toast.makeText(this@MainActivity, "Abre el buscador en el TV (OK sobre el campo): el texto se enviará solo", Toast.LENGTH_LONG).show()
+            textQueued = true
+            refreshModeLabel()
+        }.let { }
+
         override fun onImeField(active: Boolean) = main.post {
+            if (active) textQueued = false
             // El TV dejó el campo: el siguiente buscador empieza limpio en el celular también
             if (!active && mirroring()) { syncingFromTv = true; typeField.text.clear(); syncingFromTv = false }
             imeActiveOnTv = active
@@ -397,7 +404,7 @@ class MainActivity : Activity() {
     private var dictationReady = false
     private val dictation by lazy {
         dictationReady = true
-        Dictation(this, onPartial = ::showLive, onFinal = ::onDictated, onError = ::onDictationError)
+        Dictation(this, language = { dictationLanguage }, onPartial = ::showLive, onFinal = ::onDictated, onError = ::onDictationError)
     }
     private var dictating = false
     private var pendingTarget = -1
@@ -433,7 +440,11 @@ class MainActivity : Activity() {
         if (!dictation.available) { dictateWithDialog(target); return }
         dictationTarget = target
         dictating = true
-        statusText.text = getString(R.string.listening)
+        dictationBase = when {
+            toPhoneField() -> typeField.text.toString()
+            else -> session?.fieldText.orEmpty()
+        }
+        statusText.text = getString(R.string.listening) + " (" + Dictation.LANGUAGES[dictationLanguage] + ")"
         dictation.start()
     }
 
@@ -441,26 +452,43 @@ class MainActivity : Activity() {
         if (dictating) dictation.stop()
     }
 
+    /** Texto que ya había antes de dictar: lo dictado se agrega con un espacio. */
+    private var dictationBase = ""
+
+    private fun toPhoneField() = dictationTarget == DICTATE_TO_FIELD || typePanel.visibility == View.VISIBLE
+
+    /** Mientras habla: el texto va apareciendo en vivo en el celular y en el TV (si el TV usa IME). */
     private fun showLive(text: String) {
-        if (dictationTarget == DICTATE_TO_FIELD) typeField.hint = text else statusText.text = "“$text”"
+        val joined = RemoteSession.join(dictationBase, text)
+        when {
+            toPhoneField() -> setFieldLocal(joined) // el espejo lo lleva al TV
+            mirroring() -> session?.setText(joined)
+            else -> statusText.text = "“$text”"
+        }
     }
 
     private fun onDictated(text: String) {
         dictating = false
-        typeField.setHint(R.string.type_hint)
-        if (dictationTarget == DICTATE_TO_FIELD || typePanel.visibility == View.VISIBLE) {
-            // Al campo del celular (con su espacio); el espejo lo lleva al TV
-            val joined = RemoteSession.join(typeField.text.toString(), text)
-            typeField.setText(joined)
-            typeField.setSelection(joined.length)
-        } else {
-            typeOnTv(text) // mic azul con el teclado cerrado: se agrega al campo del TV con espacio
+        val joined = RemoteSession.join(dictationBase, text)
+        when {
+            toPhoneField() -> setFieldLocal(joined)
+            mirroring() -> {
+                session?.setText(joined)
+                statusText.text = "Escrito en el TV: “${if (text.length > 40) text.take(40) + "…" else text}”"
+                main.removeCallbacks(restoreStatus); main.postDelayed(restoreStatus, 4_000)
+            }
+            else -> typeOnTv(text) // sin IME: tecla por tecla al final
         }
+    }
+
+    private fun setFieldLocal(text: String) {
+        if (typeField.text.toString() == text) return
+        typeField.setText(text)
+        typeField.setSelection(text.length)
     }
 
     private fun onDictationError(message: String) {
         dictating = false
-        typeField.setHint(R.string.type_hint)
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         if (ready) setStatus(Status.OK, getString(R.string.connected))
     }
@@ -547,6 +575,7 @@ class MainActivity : Activity() {
         findViewById<ImageButton>(R.id.dictate).setOnClickListener {
             if (dictating) stopDictation() else startDictation(DICTATE_TO_FIELD)
         }
+        findViewById<ImageButton>(R.id.dictate).setOnLongClickListener { toggleDictationLanguage(); true }
         // ⌫ y ↵: en modo espejo el borrado se hace en el campo del celular y se refleja en el TV
         findViewById<ImageButton>(R.id.delKey).setOnClickListener {
             if (mirroring()) {
@@ -570,7 +599,7 @@ class MainActivity : Activity() {
                 if (syncingFromTv || !mirroring()) return
                 lastLocalEdit = android.os.SystemClock.uptimeMillis()
                 main.removeCallbacks(pushMirror)
-                main.postDelayed(pushMirror, 120) // agrupa ráfagas de teclas: un envío por pausa
+                main.postDelayed(pushMirror, 30) // la sesión ya agrupa: una edición en vuelo, sale el último texto
             }
         })
     }
@@ -642,6 +671,19 @@ class MainActivity : Activity() {
     // ======================================================================
 
     private var imeActiveOnTv = false
+    /** Hay texto esperando a que el TV abra su teclado. */
+    private var textQueued = false
+
+    private var dictationLanguage: String
+        get() = prefs.getString(K_VOICE_LANG, null)?.takeIf { it in Dictation.LANGUAGES } ?: Dictation.defaultLanguage()
+        set(v) { prefs.edit().putString(K_VOICE_LANG, v).apply(); refreshModeLabel() }
+
+    /** Mantener el mic del panel: alterna el idioma del dictado (ES/EN). */
+    private fun toggleDictationLanguage() {
+        val langs = Dictation.LANGUAGES.keys.toList()
+        dictationLanguage = langs[(langs.indexOf(dictationLanguage) + 1) % langs.size]
+        Toast.makeText(this, "Dictado en " + if (dictationLanguage.startsWith("es")) "español" else "inglés", Toast.LENGTH_SHORT).show()
+    }
     private var writeMode: RemoteSession.WriteMode
         get() = RemoteSession.WriteMode.valueOf(prefs.getString(K_WRITE, RemoteSession.WriteMode.AUTO.name)!!)
         set(v) { prefs.edit().putString(K_WRITE, v.name).apply(); refreshModeLabel() }
@@ -666,7 +708,12 @@ class MainActivity : Activity() {
             RemoteSession.WriteMode.IME -> "IME"
             RemoteSession.WriteMode.KEYS -> "Teclas"
         }
-        imeHint.text = "Modo: $mode ⇄" + if (imeActiveOnTv) " · el TV espera texto" else ""
+        imeHint.text = "Modo: $mode ⇄ · Voz ${Dictation.LANGUAGES[dictationLanguage]}" +
+            when {
+                imeActiveOnTv -> " · TV listo"
+                textQueued -> " · abre el buscador del TV"
+                else -> ""
+            }
     }
 
     private val logLines = ArrayDeque<String>()
@@ -765,6 +812,7 @@ class MainActivity : Activity() {
         private const val K_NAME = "name"
         private const val K_PIN = "server_cert_sha256"
         private const val K_WRITE = "write_mode"
+        private const val K_VOICE_LANG = "voice_lang"
         private const val REQ_MIC = 1
         private const val REQ_DICTATE = 2
         private const val DICTATE_TO_TV = 0
