@@ -83,7 +83,7 @@ El dispositivo documentado como probado es **TCL BeyondTV2 con Android TV 11**. 
 
 También puedes ocultar el menú automáticamente después de 10, 30 o 60 segundos. Las apps nuevas aparecen en **Apps** sin modificar el código.
 
-**Sobre el saludo:** esta versión muestra el nombre **David**. Para cambiarlo hay que modificar `LauncherConfig.USER_NAME` y volver a compilar; todavía no es un ajuste de la interfaz.
+**Sobre el saludo:** dice "Buenos días" sin nombre hasta que escribas el tuyo en **Personalizar → Widgets → Tu nombre en el saludo** (también puedes usar el nombre que le pusiste al TV). Se maneja con el control remoto, el teclado del TV o la app TV Remote.
 
 ## TV Remote: tu celular como control
 

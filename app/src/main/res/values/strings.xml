@@ -16,7 +16,7 @@
     <string name="pinned">%1$s fijada en inicio</string>
     <string name="unpinned">%1$s quitada de inicio</string>
     <string name="cannot_open">No se pudo abrir la app</string>
-    <string name="welcome">Bienvenido, mi rey David</string>
+    <string name="welcome">Bienvenido</string>
     <string name="edit">Editar</string>
     <string name="clean_hint">Pulsa cualquier botón para abrir el menú</string>
     <string name="customize_title">Personalizar</string>

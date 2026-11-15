@@ -70,7 +70,6 @@ Sustituye la IP por la del TV. El script usa ADB por el puerto 5555 y **reemplaz
 | Fuentes, colores, estilos de barra | `Theme` (cada opción nueva aparece sola en Personalizar) |
 | Ciudades del clima | `WeatherRepository.CITIES` |
 | Nombres sugeridos de sección | `SectionStore.PRESETS` |
-| Tu nombre en el saludo | `LauncherConfig.USER_NAME` |
 | Duración del crossfade | `LauncherConfig.CROSSFADE_MS` |
 | Orden de rotación automática | Nombre de archivo (`001.jpg`, `002.jpg`…), un fondo por día; sin archivos rota los degradados |
 | Paquetes a deshabilitar | `scripts/debloat-packages.txt` |

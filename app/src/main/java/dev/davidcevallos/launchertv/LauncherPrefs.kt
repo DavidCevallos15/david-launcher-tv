@@ -82,6 +82,11 @@ class LauncherPrefs(context: Context) {
         get() = sp.getBoolean(KEY_SHOW_GREETING, true)
         set(value) = put(KEY_SHOW_GREETING, value)
 
+    /** Nombre con el que saluda el launcher; vacío = saluda sin nombre ("Buenos días"). */
+    var userName: String
+        get() = str(KEY_USER_NAME, "")
+        set(value) = put(KEY_USER_NAME, value.trim())
+
     var showWeather: Boolean
         get() = sp.getBoolean(KEY_SHOW_WEATHER, true)
         set(value) = put(KEY_SHOW_WEATHER, value)
@@ -179,6 +184,7 @@ class LauncherPrefs(context: Context) {
         const val KEY_SHOW_DATE = "show_date"
         const val KEY_SHOW_GREETING = "show_greeting"
         const val KEY_SHOW_WEATHER = "show_weather"
+        const val KEY_USER_NAME = "user_name"
         const val KEY_WEATHER_CITY = "weather_city"
         const val KEY_FAHRENHEIT = "fahrenheit"
         const val KEY_WEATHER_CACHE = "weather_cache"

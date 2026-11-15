@@ -298,6 +298,7 @@ class MainActivity : BaseActivity() {
         }
         greeted = true
         greetingShowing = true
+        findViewById<TextView>(R.id.welcomeText).text = HeaderController.welcomeFor(prefs.userName)
         greeting.visibility = View.VISIBLE
         greeting.alpha = 0f
         greeting.animate().alpha(1f).setDuration(450L).start()

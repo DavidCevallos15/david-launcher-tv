@@ -29,6 +29,39 @@ object Dialogs {
             .show()
     }
 
+    /**
+     * Nombre del saludo. Vacío = saludar sin nombre. Si el TV tiene un nombre propio
+     * (Ajustes › Información › Nombre del dispositivo), ofrece usarlo con un botón.
+     */
+    fun askUserName(activity: Activity, initial: String, onName: (String) -> Unit) {
+        val edit = EditText(activity).apply {
+            setText(initial)
+            setSelection(initial.length)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS or InputType.TYPE_TEXT_VARIATION_PERSON_NAME
+            setSingleLine()
+            filters = arrayOf(android.text.InputFilter.LengthFilter(24))
+            hint = "Déjalo vacío para saludar sin nombre"
+        }
+        val tvName = tvName(activity)
+        val builder = AlertDialog.Builder(activity)
+            .setTitle("¿Cómo te llamas?")
+            .setView(edit)
+            .setPositiveButton("Guardar") { _, _ -> onName(edit.text.toString().trim()) }
+            .setNegativeButton("Cancelar", null)
+        if (tvName != null) builder.setNeutralButton("Usar «$tvName»") { _, _ -> onName(tvName) }
+        builder.show()
+    }
+
+    /** Nombre que el usuario le puso al TV, o null si es el de fábrica (modelo) o no se puede leer. */
+    fun tvName(activity: Activity): String? = try {
+        android.provider.Settings.Global.getString(activity.contentResolver, "device_name")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() && !it.equals(android.os.Build.MODEL, ignoreCase = true) }
+            ?.take(24)
+    } catch (_: Exception) {
+        null
+    }
+
     /** Nombre para una sección nueva: uno sugerido (Streaming, Música…) o escrito a mano. */
     fun newSection(activity: Activity, onName: (String) -> Unit) {
         val items = SectionStore.PRESETS + "Escribir otro nombre…"

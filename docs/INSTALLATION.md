@@ -51,7 +51,7 @@ También puedes abrir el enlace directo en un navegador del TV que permita desca
 
 Abre **David Launcher TV** desde la lista de aplicaciones del televisor. En algunos modelos puedes abrirlo desde **Ajustes → Apps → David Launcher TV → Abrir**.
 
-Comprueba que puedes navegar con las flechas, abrir tus apps y entrar en **Personalizar**. Los degradados integrados funcionan sin subir fondos. El saludo de esta versión usa el nombre **David**; cambiarlo requiere [editar el código y compilar](DEVELOPMENT.md#personalizar-el-código).
+Comprueba que puedes navegar con las flechas, abrir tus apps y entrar en **Personalizar**. Los degradados integrados funcionan sin subir fondos. Para que el saludo diga tu nombre, escríbelo en **Personalizar → Widgets → Tu nombre en el saludo**.
 
 Para la música, concede el acceso desde **Personalizar → Permiso para controlar la música** solo si quieres esos controles. Para el clima, elige una ciudad o utiliza la ubicación aproximada por IP.
 
@@ -185,6 +185,6 @@ El script `scripts/restore.sh` es específico de la configuración del autor: ha
 | Home sigue mostrando el inicio de fábrica | El firmware puede restringir el cambio. Puedes abrir David Launcher TV desde Apps. |
 | No aparece música | Concede acceso a notificaciones y reproduce contenido en una app con sesión multimedia compatible. |
 | TV Remote no encuentra el TV | Comprueba la misma red y Android TV Remote Service; prueba la IP manual. [Más ayuda](TV-REMOTE.md). |
-| El saludo dice David | Es el nombre definido en el código de esta versión; no es un error de instalación. |
+| El saludo no dice mi nombre | Escríbelo en **Personalizar → Widgets → Tu nombre en el saludo**. Vacío, saluda sin nombre. |
 
 ¿Sigue fallando? [Abre un issue](https://github.com/DavidCevallos15/david-launcher-tv/issues/new) con modelo, versión de Android, APK usado y mensaje exacto del error.

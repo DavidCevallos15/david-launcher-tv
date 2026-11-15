@@ -133,7 +133,7 @@ class HeaderController(
         val now = Date()
         clock.text = timeFmt.format(now)
         date.text = dateFmt.format(now).replaceFirstChar { it.titlecase(locale) }
-        greeting.text = greetingFor(Calendar.getInstance().get(Calendar.HOUR_OF_DAY))
+        greeting.text = greetingFor(Calendar.getInstance().get(Calendar.HOUR_OF_DAY), prefs.userName)
     }
 
     /** Pide el clima (siempre fuera del hilo principal). Si lo guardado es reciente y no se fuerza, solo lo pinta. */
@@ -191,12 +191,18 @@ class HeaderController(
     private fun vis(on: Boolean) = if (on) View.VISIBLE else View.GONE
 
     companion object {
-        /** Saludo según la hora del día. */
-        fun greetingFor(hour: Int): String = when (hour) {
-            in 5..11 -> "Buenos días, ${LauncherConfig.USER_NAME}"
-            in 12..18 -> "Buenas tardes, ${LauncherConfig.USER_NAME}"
-            in 19..23 -> "Buenas noches, ${LauncherConfig.USER_NAME}"
-            else -> "¿Madrugando, eh, ${LauncherConfig.USER_NAME}?"
+        /** Saludo según la hora del día; sin [name] saluda sin nombre. */
+        fun greetingFor(hour: Int, name: String): String {
+            val to = if (name.isBlank()) "" else ", ${name.trim()}"
+            return when (hour) {
+                in 5..11 -> "Buenos días$to"
+                in 12..18 -> "Buenas tardes$to"
+                in 19..23 -> "Buenas noches$to"
+                else -> "¿Madrugando, eh$to?"
+            }
         }
+
+        /** Bienvenida al arrancar el TV. */
+        fun welcomeFor(name: String): String = if (name.isBlank()) "Bienvenido" else "Bienvenido, ${name.trim()}"
     }
 }

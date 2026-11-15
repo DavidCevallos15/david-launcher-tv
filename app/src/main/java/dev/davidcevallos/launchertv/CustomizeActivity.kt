@@ -84,6 +84,21 @@ class CustomizeActivity : BaseActivity() {
         toggle("Reloj", { prefs.showClock }, { prefs.showClock = it })
         toggle("Fecha", { prefs.showDate }, { prefs.showDate = it })
         toggle("Saludo según la hora", { prefs.showGreeting }, { prefs.showGreeting = it })
+        val nameRow = SettingRow(this, "Tu nombre en el saludo", arrows = false)
+        fun refreshName() {
+            val name = prefs.userName
+            nameRow.value.text = if (name.isBlank()) "Sin nombre · OK para escribirlo" else "$name · OK para cambiarlo"
+            nameRow.value.setTextColor(if (name.isBlank()) 0x99FFFFFF.toInt() else 0xFFFFFFFF.toInt())
+        }
+        refreshName()
+        nameRow.onStep = {
+            Dialogs.askUserName(this, prefs.userName) {
+                prefs.userName = it
+                refreshName()
+                applied()
+            }
+        }
+        list.addView(nameRow.view)
         toggle("Clima en tiempo real", { prefs.showWeather }, {
             prefs.showWeather = it
             if (it) header.reloadWeather()
