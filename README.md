@@ -37,7 +37,7 @@ No necesita root ni desbloquear el bootloader. La posibilidad de usarlo como ini
 
 ## Descargar e instalar
 
-**Lo más fácil:** abre la **[página de descarga](https://davidcevallos15.github.io/david-launcher-tv/)**. En el TV, con la app *Downloader*, escribe `davidcevallos15.github.io/david-launcher-tv/tv`; para el control remoto del celular, escanea el QR.
+**Lo más fácil:** abre la **[página de descarga](https://www.davidcevallos.me/david-launcher-tv/)**. En el TV, con la app *Downloader*, escribe `davidcevallos.me/tv`; para el control remoto del celular, escanea el QR.
 
 **[Abrir la página de descargas →](https://github.com/DavidCevallos15/david-launcher-tv/releases/tag/v0.5.0-preview.1)**
 

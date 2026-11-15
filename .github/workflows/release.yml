@@ -66,8 +66,8 @@ jobs:
         run: |
           cat > notes.md <<EOF
           ## Instalar
-          - **En el TV:** abre la app *Downloader* y escribe \`davidcevallos15.github.io/david-launcher-tv/tv\`
-          - **En el celular (control remoto):** escanea el QR en https://davidcevallos15.github.io/david-launcher-tv/
+          - **En el TV:** abre la app *Downloader* y escribe \`davidcevallos.me/tv\`
+          - **En el celular (control remoto):** escanea el QR en https://www.davidcevallos.me/david-launcher-tv/
 
           Guía completa: [docs/INSTALLATION.md](https://github.com/${{ github.repository }}/blob/${TAG}/docs/INSTALLATION.md)
 

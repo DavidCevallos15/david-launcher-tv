@@ -1,6 +1,7 @@
 name: pages
 
-# Publica site/ en https://davidcevallos15.github.io/david-launcher-tv/
+# Publica site/ en GitHub Pages. Con el dominio davidcevallos.me de la cuenta, la página pública
+# real es https://www.davidcevallos.me/david-launcher-tv/ (repo personal_web).
 # (página de descarga con QR; /tv y /cel redirigen al último APK publicado)
 on:
   push:

@@ -7,7 +7,7 @@
     1. Genera release.p12 (RSA 4096, válida ~27 años) en Documentos\david-launcher-tv-firma\
     2. Guarda la contraseña en LEEME-FIRMA.txt junto al archivo
     3. Sube la llave y la contraseña como secretos cifrados del repo (gh secret set)
-    4. Activa GitHub Pages (la página con el QR: https://davidcevallos15.github.io/david-launcher-tv/)
+    4. Activa GitHub Pages (la página con el QR: https://www.davidcevallos.me/david-launcher-tv/)
     5. Publica la versión indicada (por defecto v0.6.0) con el workflow "release"
   La llave nunca se sube al código.
 
@@ -67,7 +67,7 @@ gh secret list -R $Repo
 gh api -X POST "repos/$Repo/pages" -f build_type=workflow *> $null
 gh api -X PUT "repos/$Repo/pages" -f build_type=workflow *> $null
 gh workflow run pages -R $Repo
-Write-Host "Página de descarga: https://davidcevallos15.github.io/david-launcher-tv/" -ForegroundColor Green
+Write-Host "Página de descarga: https://www.davidcevallos.me/david-launcher-tv/" -ForegroundColor Green
 
 # Primera versión firmada
 gh workflow run release -R $Repo -f tag=$Version

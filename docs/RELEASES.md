@@ -6,8 +6,8 @@ Las descargas públicas tienen tres piezas:
 
 | Pieza | Dónde | Para qué |
 | --- | --- | --- |
-| Página de descarga | `site/` → https://davidcevallos15.github.io/david-launcher-tv/ | Pasos para personas no técnicas y QR del control remoto |
-| Atajos | `/tv` y `/cel` | Redirigen a `releases/latest/download/…apk`: siempre la última versión |
+| Página de descarga | https://www.davidcevallos.me/david-launcher-tv/ (vive en el repo `personal_web`, `frontend/public/david-launcher-tv/`) | Pasos para personas no técnicas y QR del control remoto |
+| Atajos | `davidcevallos.me/tv` y `davidcevallos.me/cel` (redirecciones en `personal_web/frontend/vercel.json`) | Redirigen a `releases/latest/download/…apk`: siempre la última versión |
 | Releases firmados | workflow `release` | APK con nombre fijo y la misma firma en todas las versiones |
 
 ## Configuración inicial (una sola vez, en Windows)
@@ -20,7 +20,7 @@ El script, que necesita `gh` con sesión iniciada y un JDK:
 
 1. Crea la llave de firma en `Documentos\david-launcher-tv-firma\` (guárdala en un lugar seguro).
 2. La sube como secretos cifrados del repo (`RELEASE_KEYSTORE_BASE64`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`).
-3. Activa GitHub Pages y publica la página.
+3. Activa GitHub Pages. Como la cuenta usa el dominio `davidcevallos.me`, `davidcevallos15.github.io/david-launcher-tv/…` redirige al portafolio, que es quien sirve la página y los atajos; `site/` queda como respaldo.
 4. Publica la primera versión (`v0.6.0`).
 
 ## Publicar una versión nueva
