@@ -23,6 +23,10 @@ jobs:
           python-version: "3.12"
       - uses: gradle/actions/setup-gradle@v5
 
+      # Compilar antes de levantar el TV simulado: así el test arranca en segundos
+      - name: Compilar tests
+        run: ./gradlew --no-daemon :remote:compileDebugUnitTestKotlin
+
       # E2E del control remoto contra un TV simulado (protobuf oficial de Google)
       - name: Fake TV
         run: |

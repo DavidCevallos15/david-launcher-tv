@@ -243,7 +243,7 @@ def main():
         fp.write("1")
     print("fake TV listo; esperando client.pem del cliente Kotlin", flush=True)
 
-    for _ in range(600):
+    for _ in range(6000):  # hasta 10 min: en CI la primera compilación puede tardar
         if os.path.exists(client_pem) and os.path.getsize(client_pem) > 0:
             break
         time.sleep(0.1)
